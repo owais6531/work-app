@@ -262,10 +262,12 @@ def api_client_detail(client_id):
         return jsonify({"error": "not found"}), 404
     links = rows_as_dicts(db.execute("SELECT category, link_text, link_target FROM client_links WHERE client_id = ?", (client_id,)))
     tasks = rows_as_dicts(db.execute("SELECT * FROM tasks WHERE client_id = ?", (client_id,)))
+    drafts = rows_as_dicts(db.execute("SELECT * FROM drafts WHERE client_id = ? ORDER BY updated_at DESC", (client_id,)))
     return jsonify({
         "client": client,
         "links": links,
         "tasks": tasks,
+        "drafts": drafts,
     })
 
 
@@ -369,6 +371,66 @@ def api_recurring_generate():
         created.append(cur.lastrowid)
     db.commit()
     return jsonify({"ok": True, "created": created, "count": len(created)})
+
+
+@app.route("/api/drafts", methods=["GET", "POST"])
+def api_drafts():
+    db = get_db()
+    if request.method == "POST":
+        data = request.json or {}
+        now = datetime.datetime.now().isoformat(timespec="seconds")
+        cur = db.execute(
+            "INSERT INTO drafts (client_id, client_name_raw, task_id, draft_type, title, content, "
+            "status, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?)",
+            (
+                data.get("client_id"), data.get("client_name_raw"), data.get("task_id"),
+                data.get("draft_type", "Letter"), data.get("title"), data.get("content", ""),
+                data.get("status", "Draft"), now, now,
+            ),
+        )
+        db.commit()
+        return jsonify({"id": cur.lastrowid}), 201
+
+    client_id = request.args.get("client_id")
+    draft_type = request.args.get("draft_type")
+    sql = (
+        "SELECT d.*, c.name AS client_display_name, c.ntn FROM drafts d "
+        "LEFT JOIN clients c ON c.id = d.client_id WHERE 1=1"
+    )
+    params = []
+    if client_id:
+        sql += " AND d.client_id = ?"
+        params.append(client_id)
+    if draft_type:
+        sql += " AND d.draft_type = ?"
+        params.append(draft_type)
+    sql += " ORDER BY d.updated_at DESC"
+    rows = rows_as_dicts(db.execute(sql, params))
+    return jsonify(rows)
+
+
+@app.route("/api/drafts/<int:draft_id>", methods=["PUT", "DELETE"])
+def api_draft_detail(draft_id):
+    db = get_db()
+    if request.method == "DELETE":
+        db.execute("DELETE FROM drafts WHERE id = ?", (draft_id,))
+        db.commit()
+        return "", 204
+
+    data = request.json or {}
+    fields = ["client_id", "client_name_raw", "task_id", "draft_type", "title", "content", "status"]
+    updates, params = [], []
+    for f in fields:
+        if f in data:
+            updates.append(f"{f} = ?")
+            params.append(data[f])
+    now = datetime.datetime.now().isoformat(timespec="seconds")
+    updates.append("updated_at = ?")
+    params.append(now)
+    params.append(draft_id)
+    db.execute(f"UPDATE drafts SET {', '.join(updates)} WHERE id = ?", params)
+    db.commit()
+    return jsonify({"ok": True})
 
 
 @app.route("/api/backup", methods=["POST"])

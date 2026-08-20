@@ -22,10 +22,15 @@ function parseChecklist(raw) {
   if (!raw) return [];
   try { return JSON.parse(raw) || []; } catch (e) { return []; }
 }
-function toFileUrl(p) {
-  if (!p) return p;
-  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(p)) return p; // already a URL (http, https, etc)
-  return "file:///" + p.replace(/\\/g, "/").replace(/^\/+/, "");
+// Folder links from client_links are local Windows paths (not URLs) - browsers can't
+// navigate to them directly, so we copy the path and Umair pastes it into Explorer.
+async function copyToClipboard(text) {
+  try { await navigator.clipboard.writeText(text); return true; } catch (e) { return false; }
+}
+function flashCopied(btn, copiedLabel) {
+  const original = btn.textContent;
+  btn.textContent = copiedLabel || "✅ Copied";
+  setTimeout(() => { btn.textContent = original; }, 1200);
 }
 
 // ---- Tabs ----
@@ -41,6 +46,7 @@ document.querySelectorAll("nav button").forEach(btn => {
     if (btn.dataset.tab === "clients") loadClients();
     if (btn.dataset.tab === "notepad") loadNotepad();
     if (btn.dataset.tab === "recurring") loadRecurring();
+    if (btn.dataset.tab === "drafts") loadDrafts();
     if (btn.dataset.tab === "passwords") loadCredentials();
     if (btn.dataset.tab === "taxcalc") loadTaxCalc();
     if (btn.dataset.tab === "backups") loadBackups();
@@ -172,7 +178,8 @@ async function loadTasks() {
       <td class="small">${t.plan_day || ""}</td>
       <td class="small">${linkify(t.notes || "")}</td>
       <td>
-        ${t.client_id ? '<button class="btn secondary btn-folder" title="Client folder kholein">📁</button>' : ""}
+        ${t.client_id ? '<button class="btn secondary btn-folder" title="Folder path copy karein">📁</button>' : ""}
+        ${t.client_id ? '<button class="btn secondary btn-draft" title="Letter/script draft banayein">📝</button>' : ""}
         <button class="btn secondary btn-del">✕</button>
       </td>
     </tr>`).join("");
@@ -187,7 +194,10 @@ async function loadTasks() {
     if (task) wireChecklist(tr, id, task);
     const folderBtn = tr.querySelector(".btn-folder");
     if (folderBtn) folderBtn.addEventListener("click", () =>
-      openClientFolder(tr.dataset.clientId, tr.dataset.taskType));
+      openClientFolder(tr.dataset.clientId, tr.dataset.taskType, folderBtn));
+    const draftBtn = tr.querySelector(".btn-draft");
+    if (draftBtn) draftBtn.addEventListener("click", () =>
+      startDraftFromTask(tr.dataset.clientId, task ? (task.client_display_name || task.client_name_raw) : "", tr.dataset.taskType));
     tr.querySelector(".btn-del").addEventListener("click", async () => {
       if (!confirm("Ye task delete karna hai?")) return;
       await fetch(API + `/api/tasks/${id}`, { method: "DELETE" });
@@ -195,16 +205,12 @@ async function loadTasks() {
     });
   });
 }
-async function openClientFolder(clientId, taskType) {
+async function openClientFolder(clientId, taskType, btn) {
   if (!clientId) return;
-  // Open the tab synchronously (within the click's user-gesture) so the browser doesn't
-  // block it as a popup once we get here after the await below.
-  const pending = window.open("about:blank", "_blank");
   const r = await fetch(API + `/api/clients/${clientId}`);
   const data = await r.json();
   const links = (data.links || []).filter(l => l.link_target);
   if (!links.length) {
-    if (pending) pending.close();
     alert("Is client ke liye koi folder link nahi mila — Clients tab se check kar lein.");
     return;
   }
@@ -216,9 +222,10 @@ async function openClientFolder(clientId, taskType) {
   else if (tt.includes("wht") || tt.includes("withholding")) match = findByKeyword("wht");
   else if (tt.includes("registration") || tt.includes("secp")) match = findByKeyword("registration") || findByKeyword("secp");
   else if (tt.includes("monthly")) match = findByKeyword("monthly");
-  const target = toFileUrl((match || links[0]).link_target);
-  if (pending) pending.location.href = target;
-  else window.open(target, "_blank");
+  const target = (match || links[0]).link_target;
+  await copyToClipboard(target);
+  if (btn) flashCopied(btn, "✅ Path copied");
+  else alert("Folder path copy ho gaya:\n" + target);
 }
 function checklistCellHtml(t) {
   const items = parseChecklist(t.checklist);
@@ -293,10 +300,16 @@ async function showClientDetail(id) {
     <h3>${esc(data.client.name)} <span class="small">${esc(data.client.ntn || "")}</span></h3>
     <p class="small">${esc(data.client.status_notes || "")}</p>
     <b>Folders</b>
-    <ul>${links.map(l => `<li>${esc(l.category)}: ${l.link_target ? `<a class="link" href="${esc(toFileUrl(l.link_target))}" target="_blank">${esc(l.link_text||l.category)}</a>` : esc(l.link_text)}</li>`).join("") || '<li class="empty">Koi link nahi</li>'}</ul>
+    <ul>${links.map(l => `<li>${esc(l.category)}: ${l.link_target ? `<button type="button" class="btn secondary btn-copy-folder" data-path="${esc(l.link_target)}">📋 ${esc(l.link_text||l.category)}</button>` : esc(l.link_text)}</li>`).join("") || '<li class="empty">Koi link nahi</li>'}</ul>
     <b>Tasks</b>
     ${data.tasks.length ? data.tasks.map(taskCardHtml).join("") : '<div class="empty">Koi task nahi</div>'}
   `;
+  el.querySelectorAll(".btn-copy-folder").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      await copyToClipboard(btn.dataset.path);
+      flashCopied(btn, "✅ Path copied");
+    });
+  });
 }
 
 // ---- Backups ----
@@ -648,6 +661,176 @@ document.getElementById("btn-rec-generate").addEventListener("click", async () =
     recognition.start();
   });
 })();
+
+// ---- Drafts (letters + video scripts) ----
+let draftSelectedClient = null;
+let draftEditingId = null;
+let draftListClientId = null;
+let draftDebounce = null;
+
+document.getElementById("draft-client-search").addEventListener("input", (e) => {
+  clearTimeout(draftDebounce);
+  const q = e.target.value.trim();
+  draftSelectedClient = null;
+  document.getElementById("draft-client-info").innerHTML = "";
+  const results = document.getElementById("draft-client-results");
+  if (!q) { results.style.display = "none"; return; }
+  draftDebounce = setTimeout(async () => {
+    const r = await fetch(API + "/api/clients?q=" + encodeURIComponent(q));
+    const rows = await r.json();
+    if (!rows.length) { results.style.display = "none"; return; }
+    results.innerHTML = rows.slice(0, 15).map(c =>
+      `<div class="picker-row" data-id="${c.id}" data-name="${esc(c.name)}">${esc(c.name)} <span class="small">${esc(c.ntn || "")}</span></div>`
+    ).join("");
+    results.style.display = "block";
+    results.querySelectorAll(".picker-row").forEach(row => {
+      row.addEventListener("click", () => {
+        draftSelectedClient = { id: row.dataset.id, name: row.dataset.name };
+        document.getElementById("draft-client-search").value = row.dataset.name;
+        results.style.display = "none";
+        showDraftClientInfo(row.dataset.id);
+        loadDrafts(row.dataset.id);
+      });
+    });
+  }, 250);
+});
+
+async function showDraftClientInfo(clientId) {
+  const r = await fetch(API + `/api/clients/${clientId}`);
+  const data = await r.json();
+  const el = document.getElementById("draft-client-info");
+  const links = (data.links || []).filter(l => l.link_target);
+  el.innerHTML = `
+    <div class="panel" style="background:#f9fafb; margin-top:10px;">
+      <b>${esc(data.client.name)}</b> <span class="small">NTN: ${esc(data.client.ntn || "-")}</span><br>
+      <span class="small">${esc(data.client.registration_status || "")} ${data.client.contact_info ? "· " + esc(data.client.contact_info) : ""}</span>
+      <div style="margin-top:8px;">
+        ${links.map(l => `<button type="button" class="btn secondary btn-copy-folder" data-path="${esc(l.link_target)}">📋 ${esc(l.link_text || l.category)}</button>`).join(" ") || '<span class="small">Koi folder link nahi</span>'}
+      </div>
+    </div>`;
+  el.querySelectorAll(".btn-copy-folder").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      await copyToClipboard(btn.dataset.path);
+      flashCopied(btn, "✅ Path copied");
+    });
+  });
+}
+
+document.getElementById("btn-draft-new").addEventListener("click", () => {
+  if (!draftSelectedClient) { alert("Pehle client select karein (search results se click karein)."); return; }
+  const title = document.getElementById("draft-title").value.trim();
+  if (!title) { alert("Title/subject likhein (e.g. Notice Reply)."); return; }
+  draftEditingId = null;
+  document.getElementById("draft-content").value = "";
+  document.getElementById("draft-editor").style.display = "block";
+  document.getElementById("draft-content").focus();
+});
+
+document.getElementById("btn-draft-save").addEventListener("click", async () => {
+  const content = document.getElementById("draft-content").value;
+  const title = document.getElementById("draft-title").value.trim();
+  const draftType = document.getElementById("draft-type").value;
+  const msg = document.getElementById("draft-save-msg");
+  if (draftEditingId) {
+    await fetch(API + `/api/drafts/${draftEditingId}`, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content, title, draft_type: draftType }),
+    });
+  } else {
+    if (!draftSelectedClient) { alert("Pehle client select karein."); return; }
+    const r = await fetch(API + "/api/drafts", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        client_id: Number(draftSelectedClient.id), client_name_raw: draftSelectedClient.name,
+        draft_type: draftType, title, content,
+      }),
+    });
+    const data = await r.json();
+    draftEditingId = data.id;
+  }
+  msg.textContent = "✅ Saved";
+  setTimeout(() => { msg.textContent = ""; }, 1500);
+  loadDrafts(draftListClientId);
+});
+
+function draftCardHtml(d) {
+  const client = d.client_display_name || d.client_name_raw || "-";
+  return `<div class="task-card" data-id="${d.id}">
+    <div class="row1">
+      <span class="client">${esc(client)} <span class="small">— ${esc(d.draft_type)}: ${esc(d.title || "")}</span></span>
+      <span class="${badgeClass(d.status === "Approved" ? "NORMAL" : "BLOCKED")}">${esc(d.status)}</span>
+    </div>
+    <div class="meta">${esc(d.updated_at || "")}</div>
+    <div class="notes" style="white-space:pre-wrap;">${esc((d.content || "").slice(0, 220))}${(d.content || "").length > 220 ? "…" : ""}</div>
+    <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">
+      <button class="btn secondary btn-draft-edit">✏️ Edit</button>
+      <button class="btn secondary btn-draft-copy">📋 Copy Content</button>
+      <button class="btn secondary btn-draft-approve">${d.status === "Approved" ? "↩ Mark Draft" : "✅ Mark Approved"}</button>
+      <button class="btn secondary btn-draft-del">✕ Delete</button>
+    </div>
+  </div>`;
+}
+
+async function loadDrafts(clientId) {
+  draftListClientId = clientId || null;
+  document.getElementById("draft-list-label").textContent = clientId
+    ? "Filter: is client ke drafts" : "Sab drafts (koi client filter nahi)";
+  const params = new URLSearchParams();
+  if (clientId) params.set("client_id", clientId);
+  const r = await fetch(API + "/api/drafts?" + params.toString());
+  const rows = await r.json();
+  const el = document.getElementById("drafts-list");
+  if (!rows.length) {
+    el.innerHTML = '<div class="empty">Abhi koi draft nahi.</div>';
+    return;
+  }
+  el.innerHTML = rows.map(draftCardHtml).join("");
+  el.querySelectorAll(".task-card").forEach(card => {
+    const id = card.dataset.id;
+    const row = rows.find(d => String(d.id) === id);
+    card.querySelector(".btn-draft-edit").addEventListener("click", () => {
+      draftEditingId = Number(id);
+      draftSelectedClient = { id: row.client_id, name: row.client_display_name || row.client_name_raw };
+      document.getElementById("draft-client-search").value = draftSelectedClient.name || "";
+      document.getElementById("draft-title").value = row.title || "";
+      document.getElementById("draft-type").value = row.draft_type || "Letter";
+      document.getElementById("draft-content").value = row.content || "";
+      document.getElementById("draft-editor").style.display = "block";
+      if (row.client_id) showDraftClientInfo(row.client_id);
+      document.getElementById("draft-content").scrollIntoView({ behavior: "smooth" });
+    });
+    card.querySelector(".btn-draft-copy").addEventListener("click", async (e) => {
+      await copyToClipboard(row.content || "");
+      flashCopied(e.target, "✅ Copied");
+    });
+    card.querySelector(".btn-draft-approve").addEventListener("click", async () => {
+      await fetch(API + `/api/drafts/${id}`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: row.status === "Approved" ? "Draft" : "Approved" }),
+      });
+      loadDrafts(draftListClientId);
+    });
+    card.querySelector(".btn-draft-del").addEventListener("click", async () => {
+      if (!confirm("Ye draft delete karna hai?")) return;
+      await fetch(API + `/api/drafts/${id}`, { method: "DELETE" });
+      loadDrafts(draftListClientId);
+    });
+  });
+}
+document.getElementById("btn-draft-refresh").addEventListener("click", () => loadDrafts(draftListClientId));
+document.getElementById("btn-draft-clear-filter").addEventListener("click", () => loadDrafts(null));
+
+function startDraftFromTask(clientId, clientName, taskType) {
+  document.querySelectorAll("nav button").forEach(b => b.classList.remove("active"));
+  document.querySelectorAll('nav button[data-tab="drafts"]').forEach(b => b.classList.add("active"));
+  document.querySelectorAll("main > section").forEach(s => s.style.display = "none");
+  document.getElementById("tab-drafts").style.display = "block";
+  draftSelectedClient = { id: clientId, name: clientName };
+  document.getElementById("draft-client-search").value = clientName || "";
+  document.getElementById("draft-title").value = taskType || "";
+  document.getElementById("draft-type").value = "Letter";
+  if (clientId) { showDraftClientInfo(clientId); loadDrafts(clientId); }
+}
 
 // initial load
 loadToday();
