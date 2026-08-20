@@ -22,6 +22,11 @@ function parseChecklist(raw) {
   if (!raw) return [];
   try { return JSON.parse(raw) || []; } catch (e) { return []; }
 }
+function toFileUrl(p) {
+  if (!p) return p;
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(p)) return p; // already a URL (http, https, etc)
+  return "file:///" + p.replace(/\\/g, "/").replace(/^\/+/, "");
+}
 
 // ---- Tabs ----
 document.querySelectorAll("nav button").forEach(btn => {
@@ -192,10 +197,14 @@ async function loadTasks() {
 }
 async function openClientFolder(clientId, taskType) {
   if (!clientId) return;
+  // Open the tab synchronously (within the click's user-gesture) so the browser doesn't
+  // block it as a popup once we get here after the await below.
+  const pending = window.open("about:blank", "_blank");
   const r = await fetch(API + `/api/clients/${clientId}`);
   const data = await r.json();
   const links = (data.links || []).filter(l => l.link_target);
   if (!links.length) {
+    if (pending) pending.close();
     alert("Is client ke liye koi folder link nahi mila — Clients tab se check kar lein.");
     return;
   }
@@ -207,7 +216,9 @@ async function openClientFolder(clientId, taskType) {
   else if (tt.includes("wht") || tt.includes("withholding")) match = findByKeyword("wht");
   else if (tt.includes("registration") || tt.includes("secp")) match = findByKeyword("registration") || findByKeyword("secp");
   else if (tt.includes("monthly")) match = findByKeyword("monthly");
-  window.open((match || links[0]).link_target, "_blank");
+  const target = toFileUrl((match || links[0]).link_target);
+  if (pending) pending.location.href = target;
+  else window.open(target, "_blank");
 }
 function checklistCellHtml(t) {
   const items = parseChecklist(t.checklist);
@@ -282,7 +293,7 @@ async function showClientDetail(id) {
     <h3>${esc(data.client.name)} <span class="small">${esc(data.client.ntn || "")}</span></h3>
     <p class="small">${esc(data.client.status_notes || "")}</p>
     <b>Folders</b>
-    <ul>${links.map(l => `<li>${esc(l.category)}: ${l.link_target ? `<a class="link" href="${esc(l.link_target)}" target="_blank">${esc(l.link_text||l.category)}</a>` : esc(l.link_text)}</li>`).join("") || '<li class="empty">Koi link nahi</li>'}</ul>
+    <ul>${links.map(l => `<li>${esc(l.category)}: ${l.link_target ? `<a class="link" href="${esc(toFileUrl(l.link_target))}" target="_blank">${esc(l.link_text||l.category)}</a>` : esc(l.link_text)}</li>`).join("") || '<li class="empty">Koi link nahi</li>'}</ul>
     <b>Tasks</b>
     ${data.tasks.length ? data.tasks.map(taskCardHtml).join("") : '<div class="empty">Koi task nahi</div>'}
   `;
