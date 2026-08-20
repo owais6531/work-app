@@ -22,6 +22,8 @@ CREDS_PATH = os.path.join(HERE, "credentials.db")
 
 app = Flask(__name__, static_folder="static", static_url_path="")
 
+STAFF = ["Iqbal", "Mannan", "Maha", "Amna"]
+
 
 def get_db():
     if "db" not in g:
@@ -105,8 +107,26 @@ def api_today():
         if r["priority"] in urgent_priorities or is_due_soon(r["due_date"])
     ]
     mine = [r for r in surfaced if r["owner"] == "Umair"]
-    claude = [r for r in surfaced if r["owner"] != "Umair"]
-    return jsonify({"date": today.isoformat(), "umair": mine, "claude": claude})
+    staff = [r for r in surfaced if r["owner"] in STAFF]
+    claude = [r for r in surfaced if r["owner"] not in STAFF and r["owner"] != "Umair"]
+    return jsonify({"date": today.isoformat(), "umair": mine, "staff": staff, "claude": claude})
+
+
+@app.route("/api/followups")
+def api_followups():
+    db = get_db()
+    placeholders = ",".join("?" * len(STAFF))
+    rows = rows_as_dicts(db.execute(
+        "SELECT t.*, c.name AS client_display_name, c.ntn FROM tasks t "
+        "LEFT JOIN clients c ON c.id = t.client_id "
+        "WHERE t.status NOT IN ('Done','Closed') "
+        f"AND ((t.blocked_on IS NOT NULL AND t.blocked_on != '') OR t.owner IN ({placeholders})) "
+        "ORDER BY CASE t.priority "
+        "WHEN 'URGENT-OVERDUE' THEN 0 WHEN 'URGENT' THEN 1 WHEN 'URGENT-VERIFY DATE' THEN 1 "
+        "WHEN 'BLOCKED' THEN 2 WHEN 'NORMAL' THEN 3 WHEN 'LOW' THEN 4 ELSE 5 END, t.due_date",
+        STAFF,
+    ))
+    return jsonify(rows)
 
 
 @app.route("/api/tasks", methods=["GET", "POST"])

@@ -45,6 +45,14 @@ main { padding: 20px 24px; max-width: 1200px; margin: 0 auto; }
 .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 @media (max-width: 800px) { .grid-2 { grid-template-columns: 1fr; } }
+.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+@media (max-width: 1000px) { .grid-3 { grid-template-columns: 1fr; } }
+.staff-group { margin-bottom: 14px; }
+.staff-name { font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin-bottom: 6px; }
+.followup-msg {
+  width: 100%; min-height: 64px; margin-top: 8px; padding: 8px 10px; font-size: 13px;
+  font-family: inherit; border: 1px solid var(--border); border-radius: 6px; resize: vertical;
+}
 .col-title { font-weight: 700; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
 .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; color: white; }
 .badge.URGENT-OVERDUE, .badge.URGENT-VERIFY-DATE { background: var(--urgent); }

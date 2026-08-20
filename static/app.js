@@ -1,4 +1,5 @@
 const API = "";
+const STAFF = ["Iqbal", "Mannan", "Maha", "Amna"];
 
 function badgeClass(p) {
   return "badge " + (p || "NORMAL").replace(/\s+/g, "-");
@@ -22,6 +23,7 @@ document.querySelectorAll("nav button").forEach(btn => {
     document.querySelectorAll("main > section").forEach(s => s.style.display = "none");
     document.getElementById("tab-" + btn.dataset.tab).style.display = "block";
     if (btn.dataset.tab === "today") loadToday();
+    if (btn.dataset.tab === "followups") loadFollowups();
     if (btn.dataset.tab === "tasks") loadTasks();
     if (btn.dataset.tab === "clients") loadClients();
     if (btn.dataset.tab === "notepad") loadNotepad();
@@ -41,6 +43,19 @@ async function loadToday() {
     : '<div class="empty">Kuch nahi — sab clear hai.</div>';
   document.getElementById("today-umair").innerHTML = render(data.umair);
   document.getElementById("today-claude").innerHTML = render(data.claude);
+  document.getElementById("today-staff").innerHTML = renderStaffGroups(data.staff);
+}
+function renderStaffGroups(list) {
+  if (!list || !list.length) return '<div class="empty">Kuch nahi — sab clear hai.</div>';
+  const groups = {};
+  list.forEach(t => {
+    const name = t.owner || "Unassigned";
+    if (!groups[name]) groups[name] = [];
+    groups[name].push(t);
+  });
+  return Object.keys(groups).sort().map(name =>
+    `<div class="staff-group"><div class="staff-name">${esc(name)}</div>${groups[name].map(taskCardHtml).join("")}</div>`
+  ).join("");
 }
 function taskCardHtml(t) {
   const client = t.client_display_name || t.client_name_raw || "-";
@@ -55,6 +70,49 @@ function taskCardHtml(t) {
     <div class="meta">${esc(t.task_type || "")} ${t.due_date ? "· due " + esc(t.due_date) : ""} ${t.blocked_on ? "· blocked: " + esc(t.blocked_on) : ""}</div>
     ${t.notes ? `<div class="notes">${esc(t.notes)}</div>` : ""}
   </div>`;
+}
+
+// ---- Follow-ups ----
+function buildFollowupMessage(t) {
+  const client = t.client_display_name || t.client_name_raw || "";
+  const dueLine = t.due_date ? ` (deadline ${t.due_date})` : "";
+  if (STAFF.includes(t.owner)) {
+    return `${t.owner} sahab, ${client} ki ${t.task_type || "task"}${dueLine} abhi "${t.status}" hai.` +
+      (t.blocked_on ? ` ${t.blocked_on}.` : "") +
+      ` Please status update kar dein.`;
+  }
+  return `Assalam-o-Alaikum${client ? ", " + client : ""} — aap ki ${t.task_type || "file"}${dueLine} ke liye ` +
+    `${t.blocked_on || "kuch information"} chahiye. Jald bhej dein taky kaam aage barh sake.`;
+}
+async function loadFollowups() {
+  const r = await fetch(API + "/api/followups");
+  const rows = await r.json();
+  const el = document.getElementById("followups-list");
+  if (!rows.length) {
+    el.innerHTML = '<div class="empty">Abhi koi follow-up pending nahi.</div>';
+    return;
+  }
+  el.innerHTML = rows.map(t => {
+    const client = t.client_display_name || t.client_name_raw || "-";
+    return `<div class="${cardClass(t.priority)}">
+      <div class="row1">
+        <span class="client">${esc(client)} <span class="small">→ ${esc(t.owner || "?")}</span></span>
+        <span class="${badgeClass(t.priority)}">${esc(t.priority || "")}</span>
+      </div>
+      <div class="meta">${esc(t.task_type || "")} ${t.due_date ? "· due " + esc(t.due_date) : ""} ${t.blocked_on ? "· blocked: " + esc(t.blocked_on) : ""}</div>
+      <textarea class="followup-msg">${esc(buildFollowupMessage(t))}</textarea>
+      <button class="btn secondary btn-copy-followup">📋 Copy Message</button>
+    </div>`;
+  }).join("");
+  el.querySelectorAll(".btn-copy-followup").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const ta = btn.previousElementSibling;
+      try { await navigator.clipboard.writeText(ta.value); } catch (e) {}
+      const original = btn.textContent;
+      btn.textContent = "✅ Copied";
+      setTimeout(() => { btn.textContent = original; }, 1200);
+    });
+  });
 }
 
 // ---- Tasks ----
@@ -80,7 +138,7 @@ async function loadTasks() {
     return;
   }
   tbody.innerHTML = rows.map(t => `
-    <tr data-id="${t.id}">
+    <tr data-id="${t.id}" data-client-id="${t.client_id || ""}" data-task-type="${esc(t.task_type || "")}">
       <td><span class="${projectClass(t.project)}">${esc(t.project || "Tax Practice")}</span></td>
       <td>${esc(t.client_display_name || t.client_name_raw || "-")}</td>
       <td>${esc(t.task_type || "")}</td>
@@ -92,13 +150,16 @@ async function loadTasks() {
       </td>
       <td>
         <select class="pill-select owner-select">
-          ${["Umair","Claude"].map(o => `<option ${o===t.owner?"selected":""}>${o}</option>`).join("")}
+          ${["Umair","Iqbal","Mannan","Maha","Amna","Claude"].map(o => `<option ${o===t.owner?"selected":""}>${o}</option>`).join("")}
         </select>
       </td>
       <td class="small">${esc(t.due_date || "")}</td>
       <td class="small">${t.plan_day || ""}</td>
       <td class="small">${esc(t.notes || "")}</td>
-      <td><button class="btn secondary btn-del">✕</button></td>
+      <td>
+        ${t.client_id ? '<button class="btn secondary btn-folder" title="Client folder kholein">📁</button>' : ""}
+        <button class="btn secondary btn-del">✕</button>
+      </td>
     </tr>`).join("");
 
   tbody.querySelectorAll("tr").forEach(tr => {
@@ -107,12 +168,34 @@ async function loadTasks() {
       updateTask(id, { status: e.target.value }));
     tr.querySelector(".owner-select").addEventListener("change", e =>
       updateTask(id, { owner: e.target.value }));
+    const folderBtn = tr.querySelector(".btn-folder");
+    if (folderBtn) folderBtn.addEventListener("click", () =>
+      openClientFolder(tr.dataset.clientId, tr.dataset.taskType));
     tr.querySelector(".btn-del").addEventListener("click", async () => {
       if (!confirm("Ye task delete karna hai?")) return;
       await fetch(API + `/api/tasks/${id}`, { method: "DELETE" });
       loadTasks();
     });
   });
+}
+async function openClientFolder(clientId, taskType) {
+  if (!clientId) return;
+  const r = await fetch(API + `/api/clients/${clientId}`);
+  const data = await r.json();
+  const links = (data.links || []).filter(l => l.link_target);
+  if (!links.length) {
+    alert("Is client ke liye koi folder link nahi mila — Clients tab se check kar lein.");
+    return;
+  }
+  const tt = (taskType || "").toLowerCase();
+  const findByKeyword = (kw) => links.find(l => (l.category || "").toLowerCase().includes(kw));
+  let match = null;
+  if (tt.includes("sales tax")) match = findByKeyword("sales tax");
+  else if (tt.includes("income tax")) match = findByKeyword("income tax");
+  else if (tt.includes("wht") || tt.includes("withholding")) match = findByKeyword("wht");
+  else if (tt.includes("registration") || tt.includes("secp")) match = findByKeyword("registration") || findByKeyword("secp");
+  else if (tt.includes("monthly")) match = findByKeyword("monthly");
+  window.open((match || links[0]).link_target, "_blank");
 }
 async function updateTask(id, patch) {
   await fetch(API + `/api/tasks/${id}`, {

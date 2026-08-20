@@ -10,6 +10,7 @@
   <h1>📋 Office Dashboard — Umair Tax Consultant</h1>
   <nav>
     <button data-tab="today" class="active">Today</button>
+    <button data-tab="followups">Follow-ups</button>
     <button data-tab="tasks">Tasks</button>
     <button data-tab="clients">Clients</button>
     <button data-tab="notepad">Notepad</button>
@@ -23,16 +24,30 @@
   <section id="tab-today">
     <div class="panel">
       <div class="small" id="today-date"></div>
-      <div class="grid-2" style="margin-top:10px;">
+      <div class="grid-3" style="margin-top:10px;">
         <div>
           <div class="col-title">🧑 Aapko Karna Hai</div>
           <div id="today-umair"></div>
+        </div>
+        <div>
+          <div class="col-title">👥 Staff Ko Karna Hai</div>
+          <div id="today-staff"></div>
         </div>
         <div>
           <div class="col-title">🤖 Mai Kar Deta Hun</div>
           <div id="today-claude"></div>
         </div>
       </div>
+    </div>
+  </section>
+
+  <section id="tab-followups" style="display:none;">
+    <div class="panel">
+      <div class="small" style="margin-bottom:10px;">
+        Ye tasks kisi ki taraf se ruke hain — staff ya client ko. Har card ke liye WhatsApp
+        message ready hai, chahen to edit kar lein, phir Copy kar ke bhej dein.
+      </div>
+      <div id="followups-list"></div>
     </div>
   </section>
 
@@ -50,7 +65,9 @@
           <option>BLOCKED</option><option>NORMAL</option><option>LOW</option>
         </select>
         <select id="f-owner">
-          <option value="">All Owner</option><option>Umair</option><option>Claude</option>
+          <option value="">All Owner</option>
+          <option>Umair</option><option>Iqbal</option><option>Mannan</option><option>Maha</option>
+          <option>Amna</option><option>Claude</option>
         </select>
         <select id="f-project">
           <option value="">All Projects</option><option>Tax Practice</option><option>QBizTax</option>
