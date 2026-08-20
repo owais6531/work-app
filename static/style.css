@@ -106,6 +106,10 @@ tr:hover td { background: #f9fafb; }
 .cred-input { width: 100%; border: 1px solid transparent; background: transparent; font-size: 13px; padding: 3px 5px; border-radius: 4px; font-family: inherit; }
 .cred-input:hover { border-color: var(--border); }
 .cred-input:focus { border-color: var(--accent); background: white; outline: none; }
+.cell-input { border: 1px solid transparent; background: transparent; font-size: 13px; padding: 3px 5px; border-radius: 4px; font-family: inherit; resize: vertical; }
+.cell-input:hover { border-color: var(--border); }
+.cell-input:focus { border-color: var(--accent); background: white; outline: none; }
+textarea.cell-input { min-height: 32px; }
 .cred-mask-wrap { display: flex; align-items: center; gap: 4px; }
 .cred-mask-wrap .cred-input { flex: 1; min-width: 70px; }
 .btn-copy { border: none; background: transparent; cursor: pointer; font-size: 13px; padding: 2px 4px; border-radius: 4px; }

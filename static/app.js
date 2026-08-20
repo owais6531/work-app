@@ -1,5 +1,10 @@
 const API = "";
 const STAFF = ["Iqbal", "Mannan", "Maha", "Amna"];
+// "Umair" stays the stored owner value everywhere (matching, grouping, filters) - only the
+// display label changes, since Owais (who runs this dashboard) calls his brother Bhaijan.
+function ownerLabel(o) {
+  return o === "Umair" ? "Bhaijan" : o;
+}
 
 function badgeClass(p) {
   return "badge " + (p || "NORMAL").replace(/\s+/g, "-");
@@ -61,9 +66,13 @@ async function loadToday() {
   const render = (list) => list.length
     ? list.map(taskCardHtml).join("")
     : '<div class="empty">Kuch nahi — sab clear hai.</div>';
-  document.getElementById("today-umair").innerHTML = render(data.umair);
-  document.getElementById("today-claude").innerHTML = render(data.claude);
-  document.getElementById("today-staff").innerHTML = renderStaffGroups(data.staff);
+  const umairEl = document.getElementById("today-umair");
+  const claudeEl = document.getElementById("today-claude");
+  const staffEl = document.getElementById("today-staff");
+  umairEl.innerHTML = render(data.umair);
+  claudeEl.innerHTML = render(data.claude);
+  staffEl.innerHTML = renderStaffGroups(data.staff);
+  [umairEl, claudeEl, staffEl].forEach(el => wireCardStatusSelects(el, loadToday));
 }
 function renderStaffGroups(list) {
   if (!list || !list.length) return '<div class="empty">Kuch nahi — sab clear hai.</div>';
@@ -79,7 +88,7 @@ function renderStaffGroups(list) {
 }
 function taskCardHtml(t) {
   const client = t.client_display_name || t.client_name_raw || "-";
-  return `<div class="${cardClass(t.priority)}">
+  return `<div class="${cardClass(t.priority)}" data-id="${t.id}">
     <div class="row1">
       <span class="client">${esc(client)}</span>
       <span>
@@ -89,20 +98,34 @@ function taskCardHtml(t) {
     </div>
     <div class="meta">${esc(t.task_type || "")} ${t.due_date ? "· due " + esc(t.due_date) : ""} ${t.blocked_on ? "· blocked: " + esc(t.blocked_on) : ""}</div>
     ${t.notes ? `<div class="notes">${linkify(t.notes)}</div>` : ""}
+    <div style="margin-top:6px;">
+      <select class="pill-select card-status-select">
+        ${["Pending","In Progress","Done","Closed"].map(s => `<option ${s===t.status?"selected":""}>${s}</option>`).join("")}
+      </select>
+    </div>
   </div>`;
 }
+function wireCardStatusSelects(container, onSaved) {
+  container.querySelectorAll(".card-status-select").forEach(sel => {
+    sel.addEventListener("change", async (e) => {
+      const id = sel.closest("[data-id]").dataset.id;
+      await updateTask(id, { status: e.target.value });
+      if (onSaved) onSaved();
+    });
+  });
+}
 
-// ---- Follow-ups ----
-function buildFollowupMessage(t) {
-  const client = t.client_display_name || t.client_name_raw || "";
-  const dueLine = t.due_date ? ` (deadline ${t.due_date})` : "";
-  if (STAFF.includes(t.owner)) {
-    return `${t.owner} sahab, ${client} ki ${t.task_type || "task"}${dueLine} abhi "${t.status}" hai.` +
-      (t.blocked_on ? ` ${t.blocked_on}.` : "") +
-      ` Please status update kar dein.`;
-  }
-  return `Assalam-o-Alaikum${client ? ", " + client : ""} — aap ki ${t.task_type || "file"}${dueLine} ke liye ` +
-    `${t.blocked_on || "kuch information"} chahiye. Jald bhej dein taky kaam aage barh sake.`;
+// ---- Follow-ups (one combined message per person, not per task) ----
+function followupLineForTask(t) {
+  const client = t.client_display_name || t.client_name_raw || "-";
+  const dueLine = t.due_date ? ` (due ${t.due_date})` : "";
+  const statusLine = t.status && t.status !== "Pending" ? ` [${t.status}]` : "";
+  const blockedLine = t.blocked_on ? ` — ${t.blocked_on}` : "";
+  return `${client}: ${t.task_type || "task"}${dueLine}${statusLine}${blockedLine}`;
+}
+function buildPersonFollowupMessage(owner, tasks) {
+  const lines = tasks.map((t, i) => `${i + 1}. ${followupLineForTask(t)}`).join("\n");
+  return `${ownerLabel(owner)}, ye kaam abhi pending hain:\n\n${lines}\n\nPlease update kar dein / bata dein kya status hai.`;
 }
 async function loadFollowups() {
   const r = await fetch(API + "/api/followups");
@@ -112,25 +135,36 @@ async function loadFollowups() {
     el.innerHTML = '<div class="empty">Abhi koi follow-up pending nahi.</div>';
     return;
   }
-  el.innerHTML = rows.map(t => {
-    const client = t.client_display_name || t.client_name_raw || "-";
-    return `<div class="${cardClass(t.priority)}">
+  const groups = {};
+  rows.forEach(t => {
+    const name = t.owner || "Unassigned";
+    if (!groups[name]) groups[name] = [];
+    groups[name].push(t);
+  });
+  const order = ["Umair", ...STAFF];
+  const names = Object.keys(groups).sort((a, b) => {
+    const ia = order.indexOf(a), ib = order.indexOf(b);
+    return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+  });
+  el.innerHTML = names.map(name => {
+    const tasks = groups[name];
+    const worstPriority = tasks.map(t => t.priority).sort((a, b) =>
+      ["URGENT-OVERDUE","URGENT","URGENT-VERIFY DATE","BLOCKED","NORMAL","LOW"].indexOf(a || "NORMAL") -
+      ["URGENT-OVERDUE","URGENT","URGENT-VERIFY DATE","BLOCKED","NORMAL","LOW"].indexOf(b || "NORMAL"))[0];
+    return `<div class="${cardClass(worstPriority)}">
       <div class="row1">
-        <span class="client">${esc(client)} <span class="small">→ ${esc(t.owner || "?")}</span></span>
-        <span class="${badgeClass(t.priority)}">${esc(t.priority || "")}</span>
+        <span class="client">${esc(ownerLabel(name))} <span class="small">— ${tasks.length} pending kaam</span></span>
+        <span class="${badgeClass(worstPriority)}">${esc(worstPriority || "")}</span>
       </div>
-      <div class="meta">${esc(t.task_type || "")} ${t.due_date ? "· due " + esc(t.due_date) : ""} ${t.blocked_on ? "· blocked: " + esc(t.blocked_on) : ""}</div>
-      <textarea class="followup-msg">${esc(buildFollowupMessage(t))}</textarea>
+      <textarea class="followup-msg" rows="${Math.min(tasks.length + 3, 14)}">${esc(buildPersonFollowupMessage(name, tasks))}</textarea>
       <button class="btn secondary btn-copy-followup">📋 Copy Message</button>
     </div>`;
   }).join("");
   el.querySelectorAll(".btn-copy-followup").forEach(btn => {
     btn.addEventListener("click", async () => {
       const ta = btn.previousElementSibling;
-      try { await navigator.clipboard.writeText(ta.value); } catch (e) {}
-      const original = btn.textContent;
-      btn.textContent = "✅ Copied";
-      setTimeout(() => { btn.textContent = original; }, 1200);
+      await copyToClipboard(ta.value);
+      flashCopied(btn, "✅ Copied");
     });
   });
 }
@@ -154,29 +188,35 @@ async function loadTasks() {
   const rows = await r.json();
   const tbody = document.getElementById("tasks-body");
   if (!rows.length) {
-    tbody.innerHTML = '<tr><td colspan="11" class="empty">Koi task nahi mila.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="12" class="empty">Koi task nahi mila.</td></tr>';
     return;
   }
+  const priorities = ["URGENT-OVERDUE","URGENT","URGENT-VERIFY DATE","BLOCKED","NORMAL","LOW"];
   tbody.innerHTML = rows.map(t => `
     <tr data-id="${t.id}" data-client-id="${t.client_id || ""}" data-task-type="${esc(t.task_type || "")}">
       <td><span class="${projectClass(t.project)}">${esc(t.project || "Tax Practice")}</span></td>
-      <td>${esc(t.client_display_name || t.client_name_raw || "-")}</td>
-      <td>${esc(t.task_type || "")}</td>
+      <td class="small">${esc(t.client_display_name || t.client_name_raw || "-")}</td>
+      <td><input type="text" class="task-field cell-input" data-field="task_type" value="${esc(t.task_type || "")}"></td>
       <td>${checklistCellHtml(t)}</td>
-      <td><span class="${badgeClass(t.priority)}">${esc(t.priority || "")}</span></td>
       <td>
-        <select class="pill-select status-select">
+        <select class="pill-select task-field" data-field="priority">
+          ${priorities.map(p => `<option ${p===t.priority?"selected":""}>${p}</option>`).join("")}
+        </select>
+      </td>
+      <td>
+        <select class="pill-select task-field" data-field="status">
           ${["Pending","In Progress","Done","Closed"].map(s => `<option ${s===t.status?"selected":""}>${s}</option>`).join("")}
         </select>
       </td>
       <td>
-        <select class="pill-select owner-select">
-          ${["Umair","Iqbal","Mannan","Maha","Amna","Claude"].map(o => `<option ${o===t.owner?"selected":""}>${o}</option>`).join("")}
+        <select class="pill-select task-field" data-field="owner">
+          ${["Umair","Iqbal","Mannan","Maha","Amna","Claude"].map(o => `<option value="${o}" ${o===t.owner?"selected":""}>${ownerLabel(o)}</option>`).join("")}
         </select>
       </td>
-      <td class="small">${esc(t.due_date || "")}</td>
-      <td class="small">${t.plan_day || ""}</td>
-      <td class="small">${linkify(t.notes || "")}</td>
+      <td><input type="date" class="task-field cell-input" data-field="due_date" value="${esc(t.due_date || "")}" style="width:130px;"></td>
+      <td><input type="number" class="task-field cell-input" data-field="plan_day" min="1" max="5" value="${t.plan_day || ""}" style="width:50px;"></td>
+      <td><input type="text" class="task-field cell-input" data-field="blocked_on" value="${esc(t.blocked_on || "")}" placeholder="blocked on..." style="width:130px;"></td>
+      <td><textarea class="task-field cell-input" data-field="notes" style="width:200px; min-height:32px;">${esc(t.notes || "")}</textarea></td>
       <td>
         ${t.client_id ? '<button class="btn secondary btn-folder" title="Folder path copy karein">📁</button>' : ""}
         ${t.client_id ? '<button class="btn secondary btn-draft" title="Letter/script draft banayein">📝</button>' : ""}
@@ -187,10 +227,9 @@ async function loadTasks() {
   tbody.querySelectorAll("tr").forEach(tr => {
     const id = tr.dataset.id;
     const task = rows.find(r => String(r.id) === id);
-    tr.querySelector(".status-select").addEventListener("change", e =>
-      updateTask(id, { status: e.target.value }));
-    tr.querySelector(".owner-select").addEventListener("change", e =>
-      updateTask(id, { owner: e.target.value }));
+    tr.querySelectorAll(".task-field").forEach(field => {
+      field.addEventListener("change", () => updateTask(id, { [field.dataset.field]: field.value }));
+    });
     if (task) wireChecklist(tr, id, task);
     const folderBtn = tr.querySelector(".btn-folder");
     if (folderBtn) folderBtn.addEventListener("click", () =>
@@ -296,11 +335,23 @@ async function showClientDetail(id) {
   const el = document.getElementById("client-detail");
   el.style.display = "block";
   const links = data.links.filter(l => l.link_text || l.link_target);
+  const c = data.client;
   el.innerHTML = `
-    <h3>${esc(data.client.name)} <span class="small">${esc(data.client.ntn || "")}</span></h3>
-    <p class="small">${esc(data.client.status_notes || "")}</p>
+    <h3>${esc(c.name)} <span class="small">${esc(c.ntn || "")}</span></h3>
+    <div class="toolbar">
+      <label class="small">Contact:
+        <input type="text" class="client-field" data-field="contact_info" value="${esc(c.contact_info || "")}" placeholder="email / phone" style="width:220px;">
+      </label>
+      <label class="small">Registration status:
+        <input type="text" class="client-field" data-field="registration_status" value="${esc(c.registration_status || "")}" placeholder="e.g. Sales Tax: Yes w.e.f ..." style="width:260px;">
+      </label>
+    </div>
+    <label class="small">Notes:</label>
+    <textarea class="client-field followup-msg" data-field="status_notes" style="min-height:60px;">${esc(c.status_notes || "")}</textarea>
+    <span class="small" id="client-save-msg"></span>
     <b>Folders</b>
     <ul>${links.map(l => `<li>${esc(l.category)}: ${l.link_target ? `<button type="button" class="btn secondary btn-copy-folder" data-path="${esc(l.link_target)}">📋 ${esc(l.link_text||l.category)}</button>` : esc(l.link_text)}</li>`).join("") || '<li class="empty">Koi link nahi</li>'}</ul>
+    ${data.drafts && data.drafts.length ? `<b>Drafts</b><ul>${data.drafts.map(d => `<li class="small">${esc(d.draft_type)}: ${esc(d.title||"")} — ${esc(d.status)}</li>`).join("")}</ul>` : ""}
     <b>Tasks</b>
     ${data.tasks.length ? data.tasks.map(taskCardHtml).join("") : '<div class="empty">Koi task nahi</div>'}
   `;
@@ -310,6 +361,18 @@ async function showClientDetail(id) {
       flashCopied(btn, "✅ Path copied");
     });
   });
+  el.querySelectorAll(".client-field").forEach(field => {
+    field.addEventListener("change", async () => {
+      const msg = document.getElementById("client-save-msg");
+      await fetch(API + `/api/clients/${id}`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [field.dataset.field]: field.value }),
+      });
+      msg.textContent = "✅ Saved";
+      setTimeout(() => { msg.textContent = ""; }, 1200);
+    });
+  });
+  wireCardStatusSelects(el, () => showClientDetail(id));
 }
 
 // ---- Backups ----
@@ -424,7 +487,7 @@ async function loadNotepad() {
   list.innerHTML = rows.map(n => `
     <div class="task-card ${n.status === "Processed" ? "" : "pri-URGENT"}" data-id="${n.id}">
       <div class="row1">
-        <span>${esc(n.content)}</span>
+        <textarea class="note-field cell-input" style="flex:1; min-height:24px;">${esc(n.content)}</textarea>
         <span class="${badgeClass(n.status === "Processed" ? "NORMAL" : "URGENT")}">${esc(n.status)}</span>
       </div>
       <div class="meta">${esc(n.created_at)}</div>
@@ -436,6 +499,12 @@ async function loadNotepad() {
     </div>`).join("");
   list.querySelectorAll(".task-card").forEach(card => {
     const id = card.dataset.id;
+    card.querySelector(".note-field").addEventListener("change", async (e) => {
+      await fetch(API + `/api/notes/${id}`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: e.target.value }),
+      });
+    });
     const doneBtn = card.querySelector(".btn-note-done");
     if (doneBtn) doneBtn.addEventListener("click", async () => {
       await fetch(API + `/api/notes/${id}`, {
@@ -579,17 +648,28 @@ async function loadRecurring() {
   }
   tbody.innerHTML = rows.map(s => `
     <tr data-id="${s.id}">
-      <td>${esc(s.client_display_name || s.client_name_raw || "-")}</td>
-      <td>${esc(s.task_type || "")}</td>
-      <td class="small">${esc(s.months) || "har mahina"}</td>
-      <td class="small">${s.due_day || ""}</td>
-      <td class="small">${s.period_offset_months}</td>
-      <td class="small">${esc(s.owner || "")}</td>
+      <td class="small">${esc(s.client_display_name || s.client_name_raw || "-")}</td>
+      <td><input type="text" class="rec-field cell-input" data-field="task_type" value="${esc(s.task_type || "")}"></td>
+      <td><input type="text" class="rec-field cell-input" data-field="months" value="${esc(s.months || "")}" placeholder="har mahina" style="width:110px;"></td>
+      <td><input type="number" class="rec-field cell-input" data-field="due_day" value="${s.due_day || ""}" style="width:55px;"></td>
+      <td><input type="number" class="rec-field cell-input" data-field="period_offset_months" value="${s.period_offset_months}" style="width:55px;"></td>
+      <td>
+        <select class="pill-select rec-field" data-field="owner">
+          ${["Umair","Iqbal","Mannan","Maha","Amna","Claude"].map(o => `<option value="${o}" ${o===s.owner?"selected":""}>${ownerLabel(o)}</option>`).join("")}
+        </select>
+      </td>
       <td><input type="checkbox" class="rec-active" ${s.active ? "checked" : ""}></td>
       <td><button class="btn secondary btn-rec-del">✕</button></td>
     </tr>`).join("");
   tbody.querySelectorAll("tr").forEach(tr => {
     const id = tr.dataset.id;
+    tr.querySelectorAll(".rec-field").forEach(field => {
+      field.addEventListener("change", () =>
+        fetch(API + `/api/recurring/${id}`, {
+          method: "PUT", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ [field.dataset.field]: field.value }),
+        }));
+    });
     tr.querySelector(".rec-active").addEventListener("change", e =>
       fetch(API + `/api/recurring/${id}`, {
         method: "PUT", headers: { "Content-Type": "application/json" },

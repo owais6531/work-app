@@ -137,16 +137,19 @@ def api_today():
 @app.route("/api/followups")
 def api_followups():
     db = get_db()
-    placeholders = ",".join("?" * len(STAFF))
+    # Anyone whose pending work is worth batching into one ask: Umair (the practice owner,
+    # some things are genuinely blocked on his own decision) plus office staff.
+    followup_people = ["Umair"] + STAFF
+    placeholders = ",".join("?" * len(followup_people))
     rows = rows_as_dicts(db.execute(
         "SELECT t.*, c.name AS client_display_name, c.ntn FROM tasks t "
         "LEFT JOIN clients c ON c.id = t.client_id "
         "WHERE t.status NOT IN ('Done','Closed') "
-        f"AND ((t.blocked_on IS NOT NULL AND t.blocked_on != '') OR t.owner IN ({placeholders})) "
+        f"AND (t.owner IN ({placeholders}) OR (t.blocked_on IS NOT NULL AND t.blocked_on != '')) "
         "ORDER BY CASE t.priority "
         "WHEN 'URGENT-OVERDUE' THEN 0 WHEN 'URGENT' THEN 1 WHEN 'URGENT-VERIFY DATE' THEN 1 "
         "WHEN 'BLOCKED' THEN 2 WHEN 'NORMAL' THEN 3 WHEN 'LOW' THEN 4 ELSE 5 END, t.due_date",
-        STAFF,
+        followup_people,
     ))
     return jsonify(rows)
 
@@ -254,9 +257,25 @@ def api_clients():
     return jsonify(rows)
 
 
-@app.route("/api/clients/<int:client_id>")
+@app.route("/api/clients/<int:client_id>", methods=["GET", "PUT"])
 def api_client_detail(client_id):
     db = get_db()
+    if request.method == "PUT":
+        data = request.json or {}
+        fields = ["name", "ntn", "contact_info", "registration_status", "status_notes", "enrichment_notes"]
+        updates, params = [], []
+        for f in fields:
+            if f in data:
+                updates.append(f"{f} = ?")
+                params.append(data[f])
+        if updates:
+            updates.append("last_enriched = ?")
+            params.append(today_str())
+            params.append(client_id)
+            db.execute(f"UPDATE clients SET {', '.join(updates)} WHERE id = ?", params)
+            db.commit()
+        return jsonify({"ok": True})
+
     client = row_as_dict(db.execute("SELECT * FROM clients WHERE id = ?", (client_id,)))
     if not client:
         return jsonify({"error": "not found"}), 404
