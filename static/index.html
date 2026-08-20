@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="ur">
+<head>
+<meta charset="utf-8">
+<title>Office Dashboard</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1>📋 Office Dashboard — Umair Tax Consultant</h1>
+  <nav>
+    <button data-tab="today" class="active">Today</button>
+    <button data-tab="tasks">Tasks</button>
+    <button data-tab="clients">Clients</button>
+    <button data-tab="notepad">Notepad</button>
+    <button data-tab="passwords">Passwords</button>
+    <button data-tab="taxcalc">Tax Calculator</button>
+    <button data-tab="backups">Backups</button>
+  </nav>
+</header>
+<main>
+
+  <section id="tab-today">
+    <div class="panel">
+      <div class="small" id="today-date"></div>
+      <div class="grid-2" style="margin-top:10px;">
+        <div>
+          <div class="col-title">🧑 Aapko Karna Hai</div>
+          <div id="today-umair"></div>
+        </div>
+        <div>
+          <div class="col-title">🤖 Mai Kar Deta Hun</div>
+          <div id="today-claude"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="tab-tasks" style="display:none;">
+    <div class="panel">
+      <div class="toolbar">
+        <input type="text" id="task-search" placeholder="Search client/task/notes...">
+        <select id="f-status">
+          <option value="">All Status</option>
+          <option>Pending</option><option>In Progress</option><option>Done</option><option>Closed</option>
+        </select>
+        <select id="f-priority">
+          <option value="">All Priority</option>
+          <option>URGENT-OVERDUE</option><option>URGENT</option><option>URGENT-VERIFY DATE</option>
+          <option>BLOCKED</option><option>NORMAL</option><option>LOW</option>
+        </select>
+        <select id="f-owner">
+          <option value="">All Owner</option><option>Umair</option><option>Claude</option>
+        </select>
+        <select id="f-project">
+          <option value="">All Projects</option><option>Tax Practice</option><option>QBizTax</option>
+        </select>
+        <select id="f-day">
+          <option value="">All Plan Days</option>
+          <option value="1">Day 1</option><option value="2">Day 2</option><option value="3">Day 3</option>
+          <option value="4">Day 4</option><option value="5">Day 5</option>
+        </select>
+        <button class="btn secondary" id="btn-refresh-tasks">Refresh</button>
+      </div>
+      <table>
+        <thead><tr>
+          <th>Project</th><th>Client</th><th>Task</th><th>Priority</th><th>Status</th><th>Owner</th>
+          <th>Due</th><th>Plan Day</th><th>Notes</th><th></th>
+        </tr></thead>
+        <tbody id="tasks-body"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="tab-clients" style="display:none;">
+    <div class="panel">
+      <div class="toolbar">
+        <input type="text" id="client-search" placeholder="Search by name or NTN...">
+      </div>
+      <table>
+        <thead><tr><th>Name</th><th>NTN</th><th>Contact</th><th>Status</th><th>Last Enriched</th></tr></thead>
+        <tbody id="clients-body"></tbody>
+      </table>
+      <div id="client-detail" class="client-detail" style="display:none;"></div>
+    </div>
+  </section>
+
+  <section id="tab-notepad" style="display:none;">
+    <div class="panel">
+      <div class="toolbar">
+        <input type="text" id="note-input" placeholder="Kuch bhi likh kar Enter dabayein..." style="flex:1;">
+        <button class="btn" id="btn-note-add">Save</button>
+      </div>
+      <div id="notes-list"></div>
+    </div>
+  </section>
+
+  <section id="tab-passwords" style="display:none;">
+    <div class="panel">
+      <div class="small" style="margin-bottom:10px; color:var(--urgent);">
+        🔒 Ye data sirf is computer par local hai — Turso/cloud pe sync nahi hota.
+      </div>
+      <div class="toolbar">
+        <input type="text" id="cred-search" placeholder="Client naam/ID se search karein...">
+        <button class="btn secondary" id="btn-cred-showall">👁 Show All</button>
+      </div>
+      <table>
+        <thead><tr><th>Client</th><th>Login ID</th><th>Password</th><th>Pin</th><th>Source</th><th>Remarks</th><th></th></tr></thead>
+        <tbody id="creds-body"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="tab-taxcalc" style="display:none;">
+    <div class="panel">
+      <div class="toolbar">
+        <select id="tc-year"></select>
+        <div class="toggle-group" id="tc-category-group"></div>
+      </div>
+      <div class="toolbar">
+        <div class="toggle-group" id="tc-mode-group">
+          <button type="button" class="toggle-btn active" data-mode="amount_to_tax">Amount → Tax</button>
+          <button type="button" class="toggle-btn" data-mode="tax_to_amount">Tax → Amount</button>
+        </div>
+        <input type="number" id="tc-value" placeholder="Amount daalein...">
+        <button class="btn" id="btn-tc-calc">Calculate</button>
+      </div>
+      <div id="tc-result"></div>
+      <div style="margin-top:16px;">
+        <b class="small">Slab Table</b>
+        <table>
+          <thead><tr><th>Sr</th><th>From</th><th>To</th><th>Max Tax Within Slab</th><th>Rate %</th></tr></thead>
+          <tbody id="tc-slab-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section id="tab-backups" style="display:none;">
+    <div class="panel">
+      <div class="toolbar">
+        <button class="btn" id="btn-backup">💾 Backup Now (new copy)</button>
+        <button class="btn secondary" id="btn-export">📤 Export to Excel</button>
+        <span class="small" id="backup-msg"></span>
+      </div>
+      <table>
+        <thead><tr><th>File</th><th>Size (KB)</th><th>Created</th></tr></thead>
+        <tbody id="backups-body"></tbody>
+      </table>
+    </div>
+  </section>
+
+</main>
+<script src="app.js"></script>
+</body>
+</html>

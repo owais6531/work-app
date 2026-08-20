@@ -1,0 +1,14 @@
+# Secrets - never commit
+turso_config.py
+credentials.db
+
+# Local databases (client data, legacy/replica caches)
+office.db
+office_replica.db
+office_replica.db-*
+
+# Runtime artifacts
+server.log
+server.pid
+__pycache__/
+*.pyc
