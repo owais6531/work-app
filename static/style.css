@@ -112,3 +112,16 @@ tr:hover td { background: #f9fafb; }
 .btn-copy:hover { background: #f0f4f8; }
 a.link { color: var(--accent); text-decoration: none; }
 a.link:hover { text-decoration: underline; }
+.picker-results {
+  position: absolute; z-index: 10; top: 100%; left: 0; width: 260px;
+  background: white; border: 1px solid var(--border); border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.12); max-height: 220px; overflow-y: auto;
+}
+.picker-results .picker-row { padding: 7px 10px; font-size: 13px; cursor: pointer; }
+.picker-results .picker-row:hover { background: #f0f4f8; }
+.checklist-toggle { cursor: pointer; font-size: 12px; font-weight: 700; color: var(--accent); background: none; border: none; padding: 0; }
+.checklist-box { margin-top: 6px; min-width: 180px; }
+.checklist-box label { display: flex; align-items: center; gap: 6px; font-size: 12px; margin-bottom: 3px; cursor: pointer; }
+.checklist-box label input { margin: 0; }
+.checklist-box label.done span { text-decoration: line-through; color: var(--muted); }
+#btn-note-mic.recording { background: var(--urgent); color: white; border-color: var(--urgent); }

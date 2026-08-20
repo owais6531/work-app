@@ -1,4 +1,6 @@
+import calendar
 import datetime
+import json
 import shutil
 import os
 import glob
@@ -23,6 +25,26 @@ CREDS_PATH = os.path.join(HERE, "credentials.db")
 app = Flask(__name__, static_folder="static", static_url_path="")
 
 STAFF = ["Iqbal", "Mannan", "Maha", "Amna"]
+
+CHECKLIST_TEMPLATES = [
+    ("sales tax", ["Data collect", "Compute", "IRIS file", "Challan generate", "Client ko confirm"]),
+    ("income tax", ["Data collect", "Compute/Financials", "IRIS file", "Client ko confirm"]),
+    ("wht", ["Statement compile", "IRIS file", "Client ko confirm"]),
+    ("withholding", ["Statement compile", "IRIS file", "Client ko confirm"]),
+    ("notice", ["Notice review", "Draft reply", "Client approval", "Submit"]),
+    ("registration", ["Documents collect", "Application file", "Follow-up", "Certificate receive"]),
+    ("secp", ["Documents collect", "Application file", "Follow-up", "Certificate receive"]),
+    ("quarterly", ["Data collect", "Prepare", "File", "Confirm"]),
+    ("annual", ["Data collect", "Prepare", "File", "Confirm"]),
+]
+
+
+def default_checklist(task_type):
+    tt = (task_type or "").lower()
+    for keyword, steps in CHECKLIST_TEMPLATES:
+        if keyword in tt:
+            return json.dumps([{"label": s, "done": False} for s in steps])
+    return None
 
 
 def get_db():
@@ -135,15 +157,16 @@ def api_tasks():
     if request.method == "POST":
         data = request.json or {}
         now = datetime.datetime.now().isoformat(timespec="seconds")
+        checklist = data.get("checklist") or default_checklist(data.get("task_type"))
         cur = db.execute(
             "INSERT INTO tasks (client_id, client_name_raw, task_type, period, status, priority, "
-            "due_date, blocked_on, plan_day, owner, notes, project, created_at, updated_at) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "due_date, blocked_on, plan_day, owner, notes, project, checklist, created_at, updated_at) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 data.get("client_id"), data.get("client_name_raw"), data.get("task_type"),
                 data.get("period"), data.get("status", "Pending"), data.get("priority"),
                 data.get("due_date"), data.get("blocked_on"), data.get("plan_day"),
-                data.get("owner"), data.get("notes"), data.get("project", "Tax Practice"), now, now,
+                data.get("owner"), data.get("notes"), data.get("project", "Tax Practice"), checklist, now, now,
             ),
         )
         db.commit()
@@ -202,6 +225,9 @@ def api_task_detail(task_id):
         if f in data:
             updates.append(f"{f} = ?")
             params.append(data[f])
+    if "checklist" in data:
+        updates.append("checklist = ?")
+        params.append(json.dumps(data["checklist"]) if not isinstance(data["checklist"], str) else data["checklist"])
     now = datetime.datetime.now().isoformat(timespec="seconds")
     updates.append("updated_at = ?")
     params.append(now)
@@ -241,6 +267,108 @@ def api_client_detail(client_id):
         "links": links,
         "tasks": tasks,
     })
+
+
+@app.route("/api/recurring", methods=["GET", "POST"])
+def api_recurring():
+    db = get_db()
+    if request.method == "POST":
+        data = request.json or {}
+        now = datetime.datetime.now().isoformat(timespec="seconds")
+        cur = db.execute(
+            "INSERT INTO recurring_schedules (client_id, client_name_raw, task_type, months, "
+            "due_day, period_offset_months, owner, active, created_at) VALUES (?,?,?,?,?,?,?,?,?)",
+            (
+                data.get("client_id"), data.get("client_name_raw"), data.get("task_type"),
+                data.get("months") or "", data.get("due_day"), data.get("period_offset_months", 1),
+                data.get("owner", "Umair"), 1, now,
+            ),
+        )
+        db.commit()
+        return jsonify({"id": cur.lastrowid}), 201
+
+    rows = rows_as_dicts(db.execute(
+        "SELECT r.*, c.name AS client_display_name FROM recurring_schedules r "
+        "LEFT JOIN clients c ON c.id = r.client_id ORDER BY r.client_name_raw"
+    ))
+    return jsonify(rows)
+
+
+@app.route("/api/recurring/<int:sched_id>", methods=["PUT", "DELETE"])
+def api_recurring_detail(sched_id):
+    db = get_db()
+    if request.method == "DELETE":
+        db.execute("DELETE FROM recurring_schedules WHERE id = ?", (sched_id,))
+        db.commit()
+        return "", 204
+
+    data = request.json or {}
+    fields = ["client_id", "client_name_raw", "task_type", "months", "due_day",
+              "period_offset_months", "owner", "active"]
+    updates, params = [], []
+    for f in fields:
+        if f in data:
+            updates.append(f"{f} = ?")
+            params.append(data[f])
+    if not updates:
+        return jsonify({"ok": True})
+    params.append(sched_id)
+    db.execute(f"UPDATE recurring_schedules SET {', '.join(updates)} WHERE id = ?", params)
+    db.commit()
+    return jsonify({"ok": True})
+
+
+def add_months(d, months):
+    month_index = d.month - 1 + months
+    year = d.year + month_index // 12
+    month = month_index % 12 + 1
+    day = min(d.day, calendar.monthrange(year, month)[1])
+    return datetime.date(year, month, day)
+
+
+@app.route("/api/recurring/generate", methods=["POST"])
+def api_recurring_generate():
+    db = get_db()
+    today = datetime.date.today()
+    schedules = rows_as_dicts(db.execute(
+        "SELECT * FROM recurring_schedules WHERE active = 1"
+    ))
+    created = []
+    for s in schedules:
+        months = [int(m) for m in s["months"].split(",") if m.strip()] if s["months"] else list(range(1, 13))
+        if today.month not in months:
+            continue
+        due_day = s["due_day"] or 1
+        last_day = calendar.monthrange(today.year, today.month)[1]
+        due_date = datetime.date(today.year, today.month, min(due_day, last_day))
+        period_date = add_months(due_date, -(s["period_offset_months"] or 0))
+        period_label = period_date.strftime("%b-%Y")
+
+        exists = db.execute(
+            "SELECT id FROM tasks WHERE task_type = ? AND period = ? AND "
+            "(client_id = ? OR (client_id IS NULL AND client_name_raw = ?))",
+            (s["task_type"], period_label, s["client_id"], s["client_name_raw"]),
+        ).fetchone()
+        if exists:
+            continue
+
+        now = datetime.datetime.now().isoformat(timespec="seconds")
+        days_to_due = (due_date - today).days
+        priority = "URGENT-OVERDUE" if days_to_due < 0 else ("URGENT" if days_to_due <= 8 else "NORMAL")
+        checklist = default_checklist(s["task_type"])
+        cur = db.execute(
+            "INSERT INTO tasks (client_id, client_name_raw, task_type, period, status, priority, "
+            "due_date, owner, notes, project, checklist, created_at, updated_at) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (
+                s["client_id"], s["client_name_raw"], s["task_type"], period_label, "Pending", priority,
+                due_date.isoformat(), s["owner"] or "Umair", "Auto-generated from recurring schedule.",
+                "Tax Practice", checklist, now, now,
+            ),
+        )
+        created.append(cur.lastrowid)
+    db.commit()
+    return jsonify({"ok": True, "created": created, "count": len(created)})
 
 
 @app.route("/api/backup", methods=["POST"])

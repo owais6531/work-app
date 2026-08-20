@@ -14,6 +14,7 @@
     <button data-tab="tasks">Tasks</button>
     <button data-tab="clients">Clients</button>
     <button data-tab="notepad">Notepad</button>
+    <button data-tab="recurring">Recurring</button>
     <button data-tab="passwords">Passwords</button>
     <button data-tab="taxcalc">Tax Calculator</button>
     <button data-tab="backups">Backups</button>
@@ -81,7 +82,7 @@
       </div>
       <table>
         <thead><tr>
-          <th>Project</th><th>Client</th><th>Task</th><th>Priority</th><th>Status</th><th>Owner</th>
+          <th>Project</th><th>Client</th><th>Task</th><th>Checklist</th><th>Priority</th><th>Status</th><th>Owner</th>
           <th>Due</th><th>Plan Day</th><th>Notes</th><th></th>
         </tr></thead>
         <tbody id="tasks-body"></tbody>
@@ -106,9 +107,45 @@
     <div class="panel">
       <div class="toolbar">
         <input type="text" id="note-input" placeholder="Kuch bhi likh kar Enter dabayein..." style="flex:1;">
+        <button class="btn secondary" id="btn-note-mic" title="Bol kar likhein">🎙️</button>
         <button class="btn" id="btn-note-add">Save</button>
       </div>
       <div id="notes-list"></div>
+    </div>
+  </section>
+
+  <section id="tab-recurring" style="display:none;">
+    <div class="panel">
+      <div class="small" style="margin-bottom:10px;">
+        Client ko monthly/quarterly/annual schedule par daal dein — "Generate This Period's Tasks"
+        dabane se jo bhi due hai us mahine, khud task ban jayega (agar pehle se na ho).
+      </div>
+      <div class="toolbar" style="flex-wrap:wrap;">
+        <div style="position:relative;">
+          <input type="text" id="rec-client-search" placeholder="Client search karein..." style="width:220px;">
+          <div id="rec-client-results" class="picker-results" style="display:none;"></div>
+        </div>
+        <input type="text" id="rec-task-type" placeholder="Task type (e.g. Sales Tax Return)" style="width:180px;">
+        <input type="text" id="rec-months" placeholder="Months (1,4,7,10) - khali=har mahina" style="width:200px;">
+        <input type="number" id="rec-due-day" placeholder="Due day (e.g. 18)" style="width:130px;">
+        <input type="number" id="rec-offset" placeholder="Period offset (mahine)" value="1" style="width:150px;">
+        <select id="rec-owner">
+          <option>Umair</option><option>Iqbal</option><option>Mannan</option><option>Maha</option>
+          <option>Amna</option><option>Claude</option>
+        </select>
+        <button class="btn" id="btn-rec-add">+ Add Schedule</button>
+      </div>
+      <div class="toolbar">
+        <button class="btn" id="btn-rec-generate">⚡ Generate This Period's Tasks</button>
+        <span class="small" id="rec-generate-msg"></span>
+      </div>
+      <table>
+        <thead><tr>
+          <th>Client</th><th>Task Type</th><th>Months</th><th>Due Day</th><th>Period Offset</th>
+          <th>Owner</th><th>Active</th><th></th>
+        </tr></thead>
+        <tbody id="recurring-body"></tbody>
+      </table>
     </div>
   </section>
 

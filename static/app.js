@@ -14,6 +14,14 @@ function esc(s) {
   if (s === null || s === undefined) return "";
   return String(s).replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 }
+function linkify(s) {
+  const escaped = esc(s);
+  return escaped.replace(/(https?:\/\/[^\s<]+)/g, (url) => `<a class="link" href="${url}" target="_blank">${url}</a>`);
+}
+function parseChecklist(raw) {
+  if (!raw) return [];
+  try { return JSON.parse(raw) || []; } catch (e) { return []; }
+}
 
 // ---- Tabs ----
 document.querySelectorAll("nav button").forEach(btn => {
@@ -27,6 +35,7 @@ document.querySelectorAll("nav button").forEach(btn => {
     if (btn.dataset.tab === "tasks") loadTasks();
     if (btn.dataset.tab === "clients") loadClients();
     if (btn.dataset.tab === "notepad") loadNotepad();
+    if (btn.dataset.tab === "recurring") loadRecurring();
     if (btn.dataset.tab === "passwords") loadCredentials();
     if (btn.dataset.tab === "taxcalc") loadTaxCalc();
     if (btn.dataset.tab === "backups") loadBackups();
@@ -68,7 +77,7 @@ function taskCardHtml(t) {
       </span>
     </div>
     <div class="meta">${esc(t.task_type || "")} ${t.due_date ? "· due " + esc(t.due_date) : ""} ${t.blocked_on ? "· blocked: " + esc(t.blocked_on) : ""}</div>
-    ${t.notes ? `<div class="notes">${esc(t.notes)}</div>` : ""}
+    ${t.notes ? `<div class="notes">${linkify(t.notes)}</div>` : ""}
   </div>`;
 }
 
@@ -134,7 +143,7 @@ async function loadTasks() {
   const rows = await r.json();
   const tbody = document.getElementById("tasks-body");
   if (!rows.length) {
-    tbody.innerHTML = '<tr><td colspan="10" class="empty">Koi task nahi mila.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="11" class="empty">Koi task nahi mila.</td></tr>';
     return;
   }
   tbody.innerHTML = rows.map(t => `
@@ -142,6 +151,7 @@ async function loadTasks() {
       <td><span class="${projectClass(t.project)}">${esc(t.project || "Tax Practice")}</span></td>
       <td>${esc(t.client_display_name || t.client_name_raw || "-")}</td>
       <td>${esc(t.task_type || "")}</td>
+      <td>${checklistCellHtml(t)}</td>
       <td><span class="${badgeClass(t.priority)}">${esc(t.priority || "")}</span></td>
       <td>
         <select class="pill-select status-select">
@@ -155,7 +165,7 @@ async function loadTasks() {
       </td>
       <td class="small">${esc(t.due_date || "")}</td>
       <td class="small">${t.plan_day || ""}</td>
-      <td class="small">${esc(t.notes || "")}</td>
+      <td class="small">${linkify(t.notes || "")}</td>
       <td>
         ${t.client_id ? '<button class="btn secondary btn-folder" title="Client folder kholein">📁</button>' : ""}
         <button class="btn secondary btn-del">✕</button>
@@ -164,10 +174,12 @@ async function loadTasks() {
 
   tbody.querySelectorAll("tr").forEach(tr => {
     const id = tr.dataset.id;
+    const task = rows.find(r => String(r.id) === id);
     tr.querySelector(".status-select").addEventListener("change", e =>
       updateTask(id, { status: e.target.value }));
     tr.querySelector(".owner-select").addEventListener("change", e =>
       updateTask(id, { owner: e.target.value }));
+    if (task) wireChecklist(tr, id, task);
     const folderBtn = tr.querySelector(".btn-folder");
     if (folderBtn) folderBtn.addEventListener("click", () =>
       openClientFolder(tr.dataset.clientId, tr.dataset.taskType));
@@ -196,6 +208,32 @@ async function openClientFolder(clientId, taskType) {
   else if (tt.includes("registration") || tt.includes("secp")) match = findByKeyword("registration") || findByKeyword("secp");
   else if (tt.includes("monthly")) match = findByKeyword("monthly");
   window.open((match || links[0]).link_target, "_blank");
+}
+function checklistCellHtml(t) {
+  const items = parseChecklist(t.checklist);
+  if (!items.length) return '<span class="small">—</span>';
+  const done = items.filter(i => i.done).length;
+  return `<div>
+    <button type="button" class="checklist-toggle">${done}/${items.length} ☑</button>
+    <div class="checklist-box" style="display:none;">
+      ${items.map((it, i) => `<label class="${it.done ? "done" : ""}"><input type="checkbox" data-idx="${i}" ${it.done ? "checked" : ""}><span>${esc(it.label)}</span></label>`).join("")}
+    </div>
+  </div>`;
+}
+function wireChecklist(tr, id, task) {
+  const toggle = tr.querySelector(".checklist-toggle");
+  if (!toggle) return;
+  const box = tr.querySelector(".checklist-box");
+  toggle.addEventListener("click", () => { box.style.display = box.style.display === "none" ? "block" : "none"; });
+  box.querySelectorAll("input[type=checkbox]").forEach(cb => {
+    cb.addEventListener("change", async () => {
+      const items = parseChecklist(task.checklist);
+      items[Number(cb.dataset.idx)].done = cb.checked;
+      task.checklist = JSON.stringify(items);
+      await updateTask(id, { checklist: items });
+      loadTasks();
+    });
+  });
 }
 async function updateTask(id, patch) {
   await fetch(API + `/api/tasks/${id}`, {
@@ -479,6 +517,126 @@ document.getElementById("btn-tc-calc").addEventListener("click", async () => {
     resultEl.innerHTML = `<div class="task-card"><b>Amount:</b> Rs. ${fmtMoney(Math.round(data.result))}${bracketLine}</div>`;
   }
 });
+
+// ---- Recurring schedules ----
+let recSelectedClient = null;
+let recDebounce = null;
+document.getElementById("rec-client-search").addEventListener("input", (e) => {
+  clearTimeout(recDebounce);
+  const q = e.target.value.trim();
+  recSelectedClient = null;
+  const results = document.getElementById("rec-client-results");
+  if (!q) { results.style.display = "none"; return; }
+  recDebounce = setTimeout(async () => {
+    const r = await fetch(API + "/api/clients?q=" + encodeURIComponent(q));
+    const rows = await r.json();
+    if (!rows.length) { results.style.display = "none"; return; }
+    results.innerHTML = rows.slice(0, 15).map(c =>
+      `<div class="picker-row" data-id="${c.id}" data-name="${esc(c.name)}">${esc(c.name)} <span class="small">${esc(c.ntn || "")}</span></div>`
+    ).join("");
+    results.style.display = "block";
+    results.querySelectorAll(".picker-row").forEach(row => {
+      row.addEventListener("click", () => {
+        recSelectedClient = { id: row.dataset.id, name: row.dataset.name };
+        document.getElementById("rec-client-search").value = row.dataset.name;
+        results.style.display = "none";
+      });
+    });
+  }, 250);
+});
+
+async function loadRecurring() {
+  const r = await fetch(API + "/api/recurring");
+  const rows = await r.json();
+  const tbody = document.getElementById("recurring-body");
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="8" class="empty">Abhi koi recurring schedule nahi.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(s => `
+    <tr data-id="${s.id}">
+      <td>${esc(s.client_display_name || s.client_name_raw || "-")}</td>
+      <td>${esc(s.task_type || "")}</td>
+      <td class="small">${esc(s.months) || "har mahina"}</td>
+      <td class="small">${s.due_day || ""}</td>
+      <td class="small">${s.period_offset_months}</td>
+      <td class="small">${esc(s.owner || "")}</td>
+      <td><input type="checkbox" class="rec-active" ${s.active ? "checked" : ""}></td>
+      <td><button class="btn secondary btn-rec-del">✕</button></td>
+    </tr>`).join("");
+  tbody.querySelectorAll("tr").forEach(tr => {
+    const id = tr.dataset.id;
+    tr.querySelector(".rec-active").addEventListener("change", e =>
+      fetch(API + `/api/recurring/${id}`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ active: e.target.checked ? 1 : 0 }),
+      }));
+    tr.querySelector(".btn-rec-del").addEventListener("click", async () => {
+      if (!confirm("Ye schedule delete karna hai?")) return;
+      await fetch(API + `/api/recurring/${id}`, { method: "DELETE" });
+      loadRecurring();
+    });
+  });
+}
+document.getElementById("btn-rec-add").addEventListener("click", async () => {
+  const taskType = document.getElementById("rec-task-type").value.trim();
+  const dueDay = document.getElementById("rec-due-day").value;
+  if (!taskType || !dueDay) { alert("Task type aur due day zaroori hain."); return; }
+  await fetch(API + "/api/recurring", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      client_id: recSelectedClient ? Number(recSelectedClient.id) : null,
+      client_name_raw: recSelectedClient ? recSelectedClient.name : document.getElementById("rec-client-search").value.trim(),
+      task_type: taskType,
+      months: document.getElementById("rec-months").value.trim(),
+      due_day: Number(dueDay),
+      period_offset_months: Number(document.getElementById("rec-offset").value || 1),
+      owner: document.getElementById("rec-owner").value,
+    }),
+  });
+  ["rec-client-search","rec-task-type","rec-months","rec-due-day"].forEach(id => document.getElementById(id).value = "");
+  document.getElementById("rec-offset").value = "1";
+  recSelectedClient = null;
+  loadRecurring();
+});
+document.getElementById("btn-rec-generate").addEventListener("click", async () => {
+  const msg = document.getElementById("rec-generate-msg");
+  msg.textContent = "Generate ho raha hai...";
+  const r = await fetch(API + "/api/recurring/generate", { method: "POST" });
+  const data = await r.json();
+  msg.textContent = data.count ? `✅ ${data.count} naye tasks ban gaye.` : "Is period ke liye sab already ban chuke hain.";
+});
+
+// ---- Notepad voice-to-text ----
+(function setupVoiceNote() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const micBtn = document.getElementById("btn-note-mic");
+  if (!SpeechRecognition) { micBtn.style.display = "none"; return; }
+  const recognition = new SpeechRecognition();
+  recognition.lang = "ur-PK";
+  recognition.interimResults = false;
+  let listening = false;
+  recognition.addEventListener("result", (e) => {
+    const input = document.getElementById("note-input");
+    const transcript = Array.from(e.results).map(r => r[0].transcript).join(" ");
+    input.value = (input.value ? input.value + " " : "") + transcript;
+  });
+  recognition.addEventListener("end", () => {
+    listening = false;
+    micBtn.classList.remove("recording");
+  });
+  recognition.addEventListener("error", (e) => {
+    listening = false;
+    micBtn.classList.remove("recording");
+    if (e.error !== "no-speech" && e.error !== "aborted") alert("Voice input mein masla hua: " + e.error);
+  });
+  micBtn.addEventListener("click", () => {
+    if (listening) { recognition.stop(); return; }
+    listening = true;
+    micBtn.classList.add("recording");
+    recognition.start();
+  });
+})();
 
 // initial load
 loadToday();
