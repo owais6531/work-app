@@ -109,7 +109,7 @@ def api_today():
     today = datetime.date.today()
     lookahead = today + datetime.timedelta(days=8)
     rows = rows_as_dicts(db.execute(
-        "SELECT t.*, c.name AS client_display_name, c.ntn FROM tasks t "
+        "SELECT t.*, c.name AS client_display_name, c.ntn, c.registration_status FROM tasks t "
         "LEFT JOIN clients c ON c.id = t.client_id "
         "WHERE t.status != 'Done' AND t.status != 'Closed'"
     ))
@@ -142,7 +142,7 @@ def api_followups():
     followup_people = ["Umair"] + STAFF
     placeholders = ",".join("?" * len(followup_people))
     rows = rows_as_dicts(db.execute(
-        "SELECT t.*, c.name AS client_display_name, c.ntn FROM tasks t "
+        "SELECT t.*, c.name AS client_display_name, c.ntn, c.registration_status FROM tasks t "
         "LEFT JOIN clients c ON c.id = t.client_id "
         "WHERE t.status NOT IN ('Done','Closed') "
         f"AND (t.owner IN ({placeholders}) OR (t.blocked_on IS NOT NULL AND t.blocked_on != '')) "
@@ -183,7 +183,7 @@ def api_tasks():
     project = request.args.get("project")
 
     sql = (
-        "SELECT t.*, c.name AS client_display_name, c.ntn FROM tasks t "
+        "SELECT t.*, c.name AS client_display_name, c.ntn, c.registration_status FROM tasks t "
         "LEFT JOIN clients c ON c.id = t.client_id WHERE 1=1"
     )
     params = []
@@ -452,6 +452,65 @@ def api_draft_detail(draft_id):
     return jsonify({"ok": True})
 
 
+@app.route("/api/approvals", methods=["GET", "POST"])
+def api_approvals():
+    db = get_db()
+    if request.method == "POST":
+        data = request.json or {}
+        now = datetime.datetime.now().isoformat(timespec="seconds")
+        cur = db.execute(
+            "INSERT INTO approvals (title, description, status, instructions, related_task_id, project, "
+            "created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
+            (
+                data.get("title"), data.get("description"), data.get("status", "Pending"),
+                data.get("instructions"), data.get("related_task_id"),
+                data.get("project", "Tax Practice"), now, now,
+            ),
+        )
+        db.commit()
+        return jsonify({"id": cur.lastrowid}), 201
+
+    status = request.args.get("status")
+    project = request.args.get("project")
+    sql = "SELECT * FROM approvals WHERE 1=1"
+    params = []
+    if status:
+        sql += " AND status = ?"
+        params.append(status)
+    if project:
+        sql += " AND project = ?"
+        params.append(project)
+    sql += " ORDER BY CASE status WHEN 'Pending' THEN 0 WHEN 'Needs Changes' THEN 1 ELSE 2 END, updated_at DESC"
+    rows = rows_as_dicts(db.execute(sql, params))
+    return jsonify(rows)
+
+
+@app.route("/api/approvals/<int:approval_id>", methods=["PUT", "DELETE"])
+def api_approval_detail(approval_id):
+    db = get_db()
+    if request.method == "DELETE":
+        db.execute("DELETE FROM approvals WHERE id = ?", (approval_id,))
+        db.commit()
+        return "", 204
+
+    data = request.json or {}
+    fields = ["title", "description", "status", "instructions", "related_task_id", "project"]
+    updates, params = [], []
+    for f in fields:
+        if f in data:
+            updates.append(f"{f} = ?")
+            params.append(data[f])
+    if not updates:
+        return jsonify({"ok": True})
+    now = datetime.datetime.now().isoformat(timespec="seconds")
+    updates.append("updated_at = ?")
+    params.append(now)
+    params.append(approval_id)
+    db.execute(f"UPDATE approvals SET {', '.join(updates)} WHERE id = ?", params)
+    db.commit()
+    return jsonify({"ok": True})
+
+
 @app.route("/api/backup", methods=["POST"])
 def api_backup():
     db = get_db()
@@ -484,6 +543,16 @@ def api_export_excel():
     )
     ok = result.returncode == 0
     return jsonify({"ok": ok, "output": result.stdout + result.stderr})
+
+
+@app.route("/api/open-folder", methods=["POST"])
+def api_open_folder():
+    data = request.json or {}
+    path = data.get("path") or ""
+    if not path or not os.path.exists(path):
+        return jsonify({"ok": False, "error": "Path nahi mila: " + path}), 404
+    os.startfile(path)
+    return jsonify({"ok": True})
 
 
 @app.route("/api/credentials", methods=["GET", "POST"])
@@ -573,6 +642,107 @@ def api_note_detail(note_id):
         return jsonify({"ok": True})
     params.append(note_id)
     db.execute(f"UPDATE notes SET {', '.join(updates)} WHERE id = ?", params)
+    db.commit()
+    return jsonify({"ok": True})
+
+
+@app.route("/api/ntn-lookup", methods=["POST"])
+def api_ntn_lookup():
+    db = get_db()
+    data = request.json or {}
+    raw_text = data.get("ntns", "")
+    import re
+    raw_list = re.split(r'[\n,;]+', raw_text)
+    ntns = []
+    seen = set()
+    for raw in raw_list:
+        digits = re.sub(r'[^0-9]', '', raw.strip())
+        if digits and digits not in seen and len(digits) >= 7:
+            ntns.append(digits)
+            seen.add(digits)
+    if not ntns:
+        return jsonify({"results": [], "error": "Koi valid NTN nahi mila"})
+    results = []
+    for ntn in ntns:
+        rows = rows_as_dicts(db.execute(
+            "SELECT id, name, ntn, contact_info, registration_status, "
+            "group_family, status_notes, last_enriched "
+            "FROM clients WHERE ntn = ? LIMIT 5", (ntn,)
+        ))
+        if rows:
+            for row in rows:
+                row["found"] = True
+                row["input_ntn"] = ntn
+                results.append(row)
+        else:
+            results.append({
+                "input_ntn": ntn, "found": False, "name": "NOT FOUND",
+                "ntn": ntn, "contact_info": "", "registration_status": "",
+                "group_family": "", "status_notes": "", "last_enriched": ""
+            })
+    return jsonify({"results": results, "total": len(ntns), "found": sum(1 for r in results if r["found"])})
+
+
+@app.route("/api/sales-tax-returns", methods=["GET", "POST"])
+def api_sales_tax_returns():
+    db = get_db()
+    if request.method == "POST":
+        data = request.json or {}
+        now = datetime.datetime.now().isoformat(timespec="seconds")
+        cur = db.execute(
+            "INSERT INTO sales_tax_returns (client_id, client_name, registration_number, "
+            "authority, status, submitted_upto, comments, updated_at) VALUES (?,?,?,?,?,?,?,?)",
+            (
+                data.get("client_id"), data.get("client_name"), data.get("registration_number"),
+                data.get("authority"), data.get("status", "Pending"), data.get("submitted_upto"),
+                data.get("comments"), now,
+            ),
+        )
+        db.commit()
+        return jsonify({"id": cur.lastrowid}), 201
+
+    q = request.args.get("q", "").strip().lower()
+    status = request.args.get("status")
+    authority = request.args.get("authority")
+    sql = "SELECT * FROM sales_tax_returns WHERE 1=1"
+    params = []
+    if status:
+        sql += " AND status = ?"
+        params.append(status)
+    if authority:
+        sql += " AND authority LIKE ?"
+        params.append(f"%{authority}%")
+    if q:
+        sql += " AND (lower(client_name) LIKE ? OR lower(registration_number) LIKE ? OR lower(comments) LIKE ?)"
+        params += [f"%{q}%"] * 3
+    sql += " ORDER BY CASE status WHEN 'Overdue' THEN 0 WHEN 'Due' THEN 1 WHEN 'Pending' THEN 2 WHEN 'Unclear' THEN 3 WHEN 'Submitted' THEN 4 ELSE 5 END, client_name"
+    rows = rows_as_dicts(db.execute(sql, params))
+    return jsonify(rows)
+
+
+@app.route("/api/sales-tax-returns/<int:row_id>", methods=["PUT", "DELETE"])
+def api_sales_tax_return_detail(row_id):
+    db = get_db()
+    if request.method == "DELETE":
+        db.execute("DELETE FROM sales_tax_returns WHERE id = ?", (row_id,))
+        db.commit()
+        return "", 204
+
+    data = request.json or {}
+    fields = ["client_id", "client_name", "registration_number", "authority", "status",
+              "submitted_upto", "comments"]
+    updates, params = [], []
+    for f in fields:
+        if f in data:
+            updates.append(f"{f} = ?")
+            params.append(data[f])
+    if not updates:
+        return jsonify({"ok": True})
+    now = datetime.datetime.now().isoformat(timespec="seconds")
+    updates.append("updated_at = ?")
+    params.append(now)
+    params.append(row_id)
+    db.execute(f"UPDATE sales_tax_returns SET {', '.join(updates)} WHERE id = ?", params)
     db.commit()
     return jsonify({"ok": True})
 

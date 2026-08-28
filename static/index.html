@@ -1,7 +1,8 @@
 <!doctype html>
-<html lang="ur">
+<html lang="ur" translate="no">
 <head>
 <meta charset="utf-8">
+<meta name="google" content="notranslate">
 <title>Office Dashboard</title>
 <link rel="stylesheet" href="style.css">
 </head>
@@ -11,16 +12,22 @@
   <nav>
     <button data-tab="today" class="active">Today</button>
     <button data-tab="followups">Follow-ups</button>
+    <button data-tab="approvals">Approvals</button>
     <button data-tab="tasks">Tasks</button>
-    <button data-tab="clients">Clients</button>
+    <button data-tab="clients">Clients &amp; Passwords</button>
+    <button data-tab="salestax">Sales Tax Returns</button>
+    <button data-tab="ntnlookup">NTN Lookup</button>
     <button data-tab="notepad">Notepad</button>
     <button data-tab="recurring">Recurring</button>
     <button data-tab="drafts">Drafts</button>
-    <button data-tab="passwords">Passwords</button>
     <button data-tab="taxcalc">Tax Calculator</button>
     <button data-tab="backups">Backups</button>
   </nav>
 </header>
+<div class="portal-bar-wrap">
+  <span class="small">🔗 Portals:</span>
+  <div class="portal-bar" id="portal-bar"></div>
+</div>
 <main>
 
   <section id="tab-today">
@@ -50,6 +57,27 @@
         message ready hai, chahen to edit kar lein, phir Copy kar ke bhej dein.
       </div>
       <div id="followups-list"></div>
+    </div>
+  </section>
+
+  <section id="tab-approvals" style="display:none;">
+    <div class="panel">
+      <div class="small" style="margin-bottom:10px;">
+        Jo bhi cheez aapki decision/approval maangti hai (social posts, pricing, drafts wagera) yahan
+        list hoti hai. Approve / Reject / Needs Changes mark karein, aur "Instructions for Claude" mein
+        koi bhi edit/note likh dein — agli baar Claude wahi dekh kar action lega.
+      </div>
+      <div class="toolbar">
+        <select id="f-approval-status">
+          <option value="">All Status</option>
+          <option>Pending</option><option>Approved</option><option>Rejected</option><option>Needs Changes</option>
+        </select>
+        <select id="f-approval-project">
+          <option value="">All Projects</option><option>Tax Practice</option><option>QBizTax</option>
+        </select>
+        <button class="btn secondary" id="btn-refresh-approvals">Refresh</button>
+      </div>
+      <div id="approvals-list"></div>
     </div>
   </section>
 
@@ -137,6 +165,68 @@
       </table>
       <div id="client-detail" class="client-detail" style="display:none;"></div>
     </div>
+    <div class="panel">
+      <h3 style="margin-top:0;">🔑 Passwords</h3>
+      <div class="small" style="margin-bottom:10px; color:var(--urgent);">
+        🔒 Ye data sirf is computer par local hai — Turso/cloud pe sync nahi hota.
+      </div>
+      <div class="toolbar">
+        <input type="text" id="cred-search" placeholder="Client naam/ID se search karein...">
+        <button class="btn secondary" id="btn-cred-showall">👁 Show All</button>
+      </div>
+      <table>
+        <thead><tr><th>Client</th><th>Login ID</th><th>Password</th><th>Pin</th><th>Source</th><th>Remarks</th><th></th></tr></thead>
+        <tbody id="creds-body"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="tab-salestax" style="display:none;">
+    <div class="panel">
+      <div class="small" style="margin-bottom:10px;">
+        Sirf Sales Tax waale clients. Status/registration/comments seedha edit ho sakte hain —
+        blur ya change par save ho jata hai. "Overdue"/"Due" wale zyada urgent hain.
+      </div>
+      <div class="toolbar">
+        <input type="text" id="st-search" placeholder="Client/registration number search...">
+        <select id="st-status">
+          <option value="">All Status</option>
+          <option>Overdue</option><option>Due</option><option>Pending</option>
+          <option>Unclear</option><option>Submitted</option>
+        </select>
+        <select id="st-authority">
+          <option value="">All Authorities</option>
+          <option>FBR</option><option>SRB</option><option>PRA</option><option>BRA</option><option>KPRA</option><option>KPK</option>
+        </select>
+        <button class="btn secondary" id="btn-st-refresh">Refresh</button>
+      </div>
+      <table>
+        <thead><tr>
+          <th>Client</th><th>Registration No.</th><th>Authority</th><th>Status</th>
+          <th>Submitted Upto</th><th>Comments</th>
+        </tr></thead>
+        <tbody id="salestax-body"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="tab-ntnlookup" style="display:none;">
+    <div class="panel">
+      <div class="small" style="margin-bottom:10px;">
+        Excel se NTNs copy kar ke neeche paste karein — database se client ka naam aur details turant mil jayen.
+        Har line mein ek NTN ya comma-separated NTNs daal sakte hain.
+      </div>
+      <div class="toolbar" style="flex-wrap:wrap;">
+        <textarea id="ntn-input" placeholder="NTNs yahan paste karein (har line ek ya comma separated)&#10;Example:&#10;4240170867525&#10;4230109901564, 4210117911556" style="width:100%; min-height:100px; font-family:monospace;"></textarea>
+      </div>
+      <div class="toolbar">
+        <button class="btn" id="btn-ntn-lookup">🔍 Lookup NTNs</button>
+        <button class="btn secondary" id="btn-ntn-clear">Clear</button>
+        <button class="btn secondary" id="btn-ntn-copy-results">📋 Copy Results</button>
+        <span class="small" id="ntn-msg"></span>
+      </div>
+      <div id="ntn-results"></div>
+    </div>
   </section>
 
   <section id="tab-notepad" style="display:none;">
@@ -181,22 +271,6 @@
           <th>Owner</th><th>Active</th><th></th>
         </tr></thead>
         <tbody id="recurring-body"></tbody>
-      </table>
-    </div>
-  </section>
-
-  <section id="tab-passwords" style="display:none;">
-    <div class="panel">
-      <div class="small" style="margin-bottom:10px; color:var(--urgent);">
-        🔒 Ye data sirf is computer par local hai — Turso/cloud pe sync nahi hota.
-      </div>
-      <div class="toolbar">
-        <input type="text" id="cred-search" placeholder="Client naam/ID se search karein...">
-        <button class="btn secondary" id="btn-cred-showall">👁 Show All</button>
-      </div>
-      <table>
-        <thead><tr><th>Client</th><th>Login ID</th><th>Password</th><th>Pin</th><th>Source</th><th>Remarks</th><th></th></tr></thead>
-        <tbody id="creds-body"></tbody>
       </table>
     </div>
   </section>

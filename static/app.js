@@ -6,6 +6,56 @@ function ownerLabel(o) {
   return o === "Umair" ? "Bhaijan" : o;
 }
 
+// ---- Portal quick-links (IRIS/SRB/PRA/etc.) ----
+// Defaults cover the govt portals we know for sure; Owais can add more (e.g. LEAP) himself
+// via the "+" button in the header bar - saved in this browser's localStorage so we never
+// have to guess a URL we're not sure about.
+const DEFAULT_PORTALS = [
+  { name: "IRIS (FBR)", url: "https://iris.fbr.gov.pk/", match: /\b(fbr|iris|income tax|ntn)\b/i },
+  { name: "SRB", url: "https://e.srb.gos.pk/", match: /\bsrb\b/i },
+  { name: "PRA", url: "https://e.pra.punjab.gov.pk/", match: /\bpra\b/i },
+  { name: "KPRA", url: "https://e.kpra.kp.gov.pk/", match: /\bkpra\b/i },
+  { name: "BRA", url: "https://bra.gob.pk/", match: /\bbra\b/i },
+  { name: "SECP", url: "https://eservices.secp.gov.pk/", match: /\bsecp\b/i },
+];
+function getCustomPortals() {
+  try { return JSON.parse(localStorage.getItem("customPortals") || "[]"); } catch (e) { return []; }
+}
+function saveCustomPortals(list) {
+  localStorage.setItem("customPortals", JSON.stringify(list));
+}
+function allPortals() {
+  return DEFAULT_PORTALS.concat(getCustomPortals().map(p => ({ ...p, match: new RegExp("\\b" + p.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\b", "i") })));
+}
+function renderPortalBar() {
+  const el = document.getElementById("portal-bar");
+  if (!el) return;
+  const portals = allPortals();
+  el.innerHTML = portals.map(p =>
+    `<a class="toggle-btn portal-btn" href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.name)}</a>`
+  ).join("") + `<button class="toggle-btn" id="btn-add-portal" type="button">+ Portal</button>`;
+  document.getElementById("btn-add-portal").addEventListener("click", () => {
+    const name = prompt("Portal ka naam (jaise LEAP):");
+    if (!name) return;
+    const url = prompt("Portal ka URL (https:// se shuru):");
+    if (!url) return;
+    const list = getCustomPortals();
+    list.push({ name, url });
+    saveCustomPortals(list);
+    renderPortalBar();
+  });
+}
+// Guess which portal a task belongs to from its task_type/notes/client registration_status.
+function guessPortalForTask(t) {
+  const haystack = [t.task_type, t.notes, t.registration_status].filter(Boolean).join(" ");
+  if (!haystack) return null;
+  const portals = allPortals();
+  for (const p of portals) {
+    if (p.match.test(haystack)) return p;
+  }
+  return null;
+}
+
 function badgeClass(p) {
   return "badge " + (p || "NORMAL").replace(/\s+/g, "-");
 }
@@ -28,7 +78,7 @@ function parseChecklist(raw) {
   try { return JSON.parse(raw) || []; } catch (e) { return []; }
 }
 // Folder links from client_links are local Windows paths (not URLs) - browsers can't
-// navigate to them directly, so we copy the path and Umair pastes it into Explorer.
+// navigate to them directly, so the backend opens them in Explorer for us (/api/open-folder).
 async function copyToClipboard(text) {
   try { await navigator.clipboard.writeText(text); return true; } catch (e) { return false; }
 }
@@ -36,6 +86,19 @@ function flashCopied(btn, copiedLabel) {
   const original = btn.textContent;
   btn.textContent = copiedLabel || "✅ Copied";
   setTimeout(() => { btn.textContent = original; }, 1200);
+}
+async function openFolderPath(path, btn) {
+  const r = await fetch(API + "/api/open-folder", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path }),
+  });
+  const data = await r.json();
+  if (data.ok) {
+    if (btn) flashCopied(btn, "✅ Opened");
+  } else {
+    await copyToClipboard(path);
+    alert("Folder khud open nahi ho saka (" + (data.error || "unknown error") + ") — path copy kar diya hai, Explorer mein paste kar lein.");
+  }
 }
 
 // ---- Tabs ----
@@ -47,12 +110,14 @@ document.querySelectorAll("nav button").forEach(btn => {
     document.getElementById("tab-" + btn.dataset.tab).style.display = "block";
     if (btn.dataset.tab === "today") loadToday();
     if (btn.dataset.tab === "followups") loadFollowups();
+    if (btn.dataset.tab === "approvals") loadApprovals();
     if (btn.dataset.tab === "tasks") loadTasks();
-    if (btn.dataset.tab === "clients") loadClients();
+    if (btn.dataset.tab === "clients") { loadClients(); loadCredentials(); }
+    if (btn.dataset.tab === "salestax") loadSalesTax();
+    if (btn.dataset.tab === "ntnlookup") { /* no pre-load needed */ }
     if (btn.dataset.tab === "notepad") loadNotepad();
     if (btn.dataset.tab === "recurring") loadRecurring();
     if (btn.dataset.tab === "drafts") loadDrafts();
-    if (btn.dataset.tab === "passwords") loadCredentials();
     if (btn.dataset.tab === "taxcalc") loadTaxCalc();
     if (btn.dataset.tab === "backups") loadBackups();
   });
@@ -88,6 +153,10 @@ function renderStaffGroups(list) {
 }
 function taskCardHtml(t) {
   const client = t.client_display_name || t.client_name_raw || "-";
+  const portal = guessPortalForTask(t);
+  const portalLink = portal
+    ? ` <a class="link portal-task-link" href="${esc(portal.url)}" target="_blank" rel="noopener">🔗 ${esc(portal.name)} kholein</a>`
+    : "";
   return `<div class="${cardClass(t.priority)}" data-id="${t.id}">
     <div class="row1">
       <span class="client">${esc(client)}</span>
@@ -96,8 +165,8 @@ function taskCardHtml(t) {
         <span class="${badgeClass(t.priority)}">${esc(t.priority || "")}</span>
       </span>
     </div>
-    <div class="meta">${esc(t.task_type || "")} ${t.due_date ? "· due " + esc(t.due_date) : ""} ${t.blocked_on ? "· blocked: " + esc(t.blocked_on) : ""}</div>
-    ${t.notes ? `<div class="notes">${linkify(t.notes)}</div>` : ""}
+    <div class="meta">${esc(t.task_type || "")} ${t.due_date ? "· due " + esc(t.due_date) : ""} ${t.blocked_on ? "· blocked: " + esc(t.blocked_on) : ""}${portalLink}</div>
+    <textarea class="cell-input notes card-notes-edit" placeholder="Note / instruction likhein...">${esc(t.notes || "")}</textarea>
     <div style="margin-top:6px;">
       <select class="pill-select card-status-select">
         ${["Pending","In Progress","Done","Closed"].map(s => `<option ${s===t.status?"selected":""}>${s}</option>`).join("")}
@@ -111,6 +180,12 @@ function wireCardStatusSelects(container, onSaved) {
       const id = sel.closest("[data-id]").dataset.id;
       await updateTask(id, { status: e.target.value });
       if (onSaved) onSaved();
+    });
+  });
+  container.querySelectorAll(".card-notes-edit").forEach(ta => {
+    ta.addEventListener("blur", async (e) => {
+      const id = ta.closest("[data-id]").dataset.id;
+      await updateTask(id, { notes: e.target.value });
     });
   });
 }
@@ -169,6 +244,73 @@ async function loadFollowups() {
   });
 }
 
+// ---- Approvals ----
+function approvalStatusBadgeClass(status) {
+  if (status === "Approved") return "NORMAL";
+  if (status === "Rejected") return "BLOCKED";
+  if (status === "Needs Changes") return "URGENT";
+  return "URGENT-OVERDUE";
+}
+function approvalCardHtml(a) {
+  return `<div class="task-card" data-id="${a.id}">
+    <div class="row1">
+      <span class="client">${esc(a.title || "")} ${a.project ? `<span class="${projectClass(a.project)}">${esc(a.project)}</span>` : ""}</span>
+      <span class="${badgeClass(approvalStatusBadgeClass(a.status))}">${esc(a.status || "Pending")}</span>
+    </div>
+    <div class="notes" style="white-space:pre-wrap;">${esc(a.description || "")}</div>
+    <div class="meta">${esc(a.updated_at || "")}</div>
+    <label class="small" style="display:block; margin-top:8px;">Instructions for Claude:</label>
+    <textarea class="approval-instructions cell-input" placeholder="Yahan edit/instruction likhein...">${esc(a.instructions || "")}</textarea>
+    <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">
+      <button class="btn approval-set-status" data-status="Approved">✅ Approve</button>
+      <button class="btn secondary approval-set-status" data-status="Needs Changes">✏️ Needs Changes</button>
+      <button class="btn secondary approval-set-status" data-status="Rejected">❌ Reject</button>
+      <button class="btn secondary btn-approval-del">✕ Delete</button>
+    </div>
+  </div>`;
+}
+async function loadApprovals() {
+  const status = document.getElementById("f-approval-status").value;
+  const project = document.getElementById("f-approval-project").value;
+  const params = new URLSearchParams();
+  if (status) params.set("status", status);
+  if (project) params.set("project", project);
+  const r = await fetch(API + "/api/approvals?" + params.toString());
+  const rows = await r.json();
+  const el = document.getElementById("approvals-list");
+  if (!rows.length) {
+    el.innerHTML = '<div class="empty">Abhi koi approval pending nahi.</div>';
+    return;
+  }
+  el.innerHTML = rows.map(approvalCardHtml).join("");
+  el.querySelectorAll(".task-card").forEach(card => {
+    const id = card.dataset.id;
+    card.querySelectorAll(".approval-set-status").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        await fetch(API + `/api/approvals/${id}`, {
+          method: "PUT", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: btn.dataset.status }),
+        });
+        loadApprovals();
+      });
+    });
+    card.querySelector(".approval-instructions").addEventListener("change", async (e) => {
+      await fetch(API + `/api/approvals/${id}`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ instructions: e.target.value }),
+      });
+    });
+    card.querySelector(".btn-approval-del").addEventListener("click", async () => {
+      if (!confirm("Ye approval item delete karna hai?")) return;
+      await fetch(API + `/api/approvals/${id}`, { method: "DELETE" });
+      loadApprovals();
+    });
+  });
+}
+document.getElementById("btn-refresh-approvals").addEventListener("click", loadApprovals);
+document.getElementById("f-approval-status").addEventListener("change", loadApprovals);
+document.getElementById("f-approval-project").addEventListener("change", loadApprovals);
+
 // ---- Tasks ----
 async function loadTasks() {
   const params = new URLSearchParams();
@@ -218,7 +360,7 @@ async function loadTasks() {
       <td><input type="text" class="task-field cell-input" data-field="blocked_on" value="${esc(t.blocked_on || "")}" placeholder="blocked on..." style="width:130px;"></td>
       <td><textarea class="task-field cell-input" data-field="notes" style="width:200px; min-height:32px;">${esc(t.notes || "")}</textarea></td>
       <td>
-        ${t.client_id ? '<button class="btn secondary btn-folder" title="Folder path copy karein">📁</button>' : ""}
+        ${t.client_id ? '<button class="btn secondary btn-folder" title="Folder open karein">📁</button>' : ""}
         ${t.client_id ? '<button class="btn secondary btn-draft" title="Letter/script draft banayein">📝</button>' : ""}
         <button class="btn secondary btn-del">✕</button>
       </td>
@@ -262,9 +404,7 @@ async function openClientFolder(clientId, taskType, btn) {
   else if (tt.includes("registration") || tt.includes("secp")) match = findByKeyword("registration") || findByKeyword("secp");
   else if (tt.includes("monthly")) match = findByKeyword("monthly");
   const target = (match || links[0]).link_target;
-  await copyToClipboard(target);
-  if (btn) flashCopied(btn, "✅ Path copied");
-  else alert("Folder path copy ho gaya:\n" + target);
+  await openFolderPath(target, btn);
 }
 function checklistCellHtml(t) {
   const items = parseChecklist(t.checklist);
@@ -350,15 +490,21 @@ async function showClientDetail(id) {
     <textarea class="client-field followup-msg" data-field="status_notes" style="min-height:60px;">${esc(c.status_notes || "")}</textarea>
     <span class="small" id="client-save-msg"></span>
     <b>Folders</b>
-    <ul>${links.map(l => `<li>${esc(l.category)}: ${l.link_target ? `<button type="button" class="btn secondary btn-copy-folder" data-path="${esc(l.link_target)}">📋 ${esc(l.link_text||l.category)}</button>` : esc(l.link_text)}</li>`).join("") || '<li class="empty">Koi link nahi</li>'}</ul>
+    <ul>${links.map(l => `<li>${esc(l.category)}: ${l.link_target ? `
+      <button type="button" class="btn btn-open-folder" data-path="${esc(l.link_target)}">📂 ${esc(l.link_text||l.category)}</button>
+      <button type="button" class="btn secondary btn-copy-folder" data-path="${esc(l.link_target)}" title="Path copy karein">📋</button>
+    ` : esc(l.link_text)}</li>`).join("") || '<li class="empty">Koi link nahi</li>'}</ul>
     ${data.drafts && data.drafts.length ? `<b>Drafts</b><ul>${data.drafts.map(d => `<li class="small">${esc(d.draft_type)}: ${esc(d.title||"")} — ${esc(d.status)}</li>`).join("")}</ul>` : ""}
     <b>Tasks</b>
     ${data.tasks.length ? data.tasks.map(taskCardHtml).join("") : '<div class="empty">Koi task nahi</div>'}
   `;
+  el.querySelectorAll(".btn-open-folder").forEach(btn => {
+    btn.addEventListener("click", () => openFolderPath(btn.dataset.path, btn));
+  });
   el.querySelectorAll(".btn-copy-folder").forEach(btn => {
     btn.addEventListener("click", async () => {
       await copyToClipboard(btn.dataset.path);
-      flashCopied(btn, "✅ Path copied");
+      flashCopied(btn, "✅ Copied");
     });
   });
   el.querySelectorAll(".client-field").forEach(field => {
@@ -373,6 +519,13 @@ async function showClientDetail(id) {
     });
   });
   wireCardStatusSelects(el, () => showClientDetail(id));
+
+  // Filter the Passwords section below to this client. Credential names are messy/inconsistent
+  // (see CLAUDE.md) so match on the first word only - safer in both directions than the full name.
+  const credSearch = document.getElementById("cred-search");
+  credSearch.value = (c.name || "").trim().split(/\s+/)[0] || "";
+  loadCredentials();
+  document.getElementById("creds-body").scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
 // ---- Backups ----
@@ -401,6 +554,55 @@ document.getElementById("btn-export").addEventListener("click", async () => {
 });
 
 // ---- Passwords (local-only) ----
+// ---- Sales Tax Returns ----
+async function loadSalesTax() {
+  const q = document.getElementById("st-search").value.trim();
+  const status = document.getElementById("st-status").value;
+  const authority = document.getElementById("st-authority").value;
+  const params = new URLSearchParams();
+  if (q) params.set("q", q);
+  if (status) params.set("status", status);
+  if (authority) params.set("authority", authority);
+  const r = await fetch(API + "/api/sales-tax-returns?" + params.toString());
+  const rows = await r.json();
+  const tbody = document.getElementById("salestax-body");
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="6" class="empty">Koi record nahi mila.</td></tr>';
+    return;
+  }
+  const statuses = ["Overdue", "Due", "Pending", "Unclear", "Submitted"];
+  tbody.innerHTML = rows.map(s => `
+    <tr data-id="${s.id}">
+      <td><input type="text" class="st-input" data-field="client_name" value="${esc(s.client_name || "")}" style="min-width:200px;"></td>
+      <td><input type="text" class="st-input" data-field="registration_number" value="${esc(s.registration_number || "")}" style="width:130px;"></td>
+      <td><input type="text" class="st-input" data-field="authority" value="${esc(s.authority || "")}" style="width:90px;"></td>
+      <td>
+        <select class="pill-select st-input" data-field="status">
+          ${statuses.map(x => `<option ${x === s.status ? "selected" : ""}>${x}</option>`).join("")}
+        </select>
+      </td>
+      <td><input type="text" class="st-input" data-field="submitted_upto" value="${esc(s.submitted_upto || "")}" style="width:90px;" placeholder="MMM-YY"></td>
+      <td><input type="text" class="st-input" data-field="comments" value="${esc(s.comments || "")}" style="min-width:280px;"></td>
+    </tr>`).join("");
+
+  tbody.querySelectorAll(".st-input").forEach(input => {
+    const save = async () => {
+      const id = input.closest("tr").dataset.id;
+      const field = input.dataset.field;
+      await fetch(API + `/api/sales-tax-returns/${id}`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [field]: input.value }),
+      });
+      if (field === "status") loadSalesTax();
+    };
+    input.addEventListener("change", save);
+  });
+}
+document.getElementById("st-search").addEventListener("input", loadSalesTax);
+document.getElementById("st-status").addEventListener("change", loadSalesTax);
+document.getElementById("st-authority").addEventListener("change", loadSalesTax);
+document.getElementById("btn-st-refresh").addEventListener("click", loadSalesTax);
+
 let credsRevealed = false;
 
 async function loadCredentials() {
@@ -785,14 +987,11 @@ async function showDraftClientInfo(clientId) {
       <b>${esc(data.client.name)}</b> <span class="small">NTN: ${esc(data.client.ntn || "-")}</span><br>
       <span class="small">${esc(data.client.registration_status || "")} ${data.client.contact_info ? "· " + esc(data.client.contact_info) : ""}</span>
       <div style="margin-top:8px;">
-        ${links.map(l => `<button type="button" class="btn secondary btn-copy-folder" data-path="${esc(l.link_target)}">📋 ${esc(l.link_text || l.category)}</button>`).join(" ") || '<span class="small">Koi folder link nahi</span>'}
+        ${links.map(l => `<button type="button" class="btn btn-open-folder" data-path="${esc(l.link_target)}">📂 ${esc(l.link_text || l.category)}</button>`).join(" ") || '<span class="small">Koi folder link nahi</span>'}
       </div>
     </div>`;
-  el.querySelectorAll(".btn-copy-folder").forEach(btn => {
-    btn.addEventListener("click", async () => {
-      await copyToClipboard(btn.dataset.path);
-      flashCopied(btn, "✅ Path copied");
-    });
+  el.querySelectorAll(".btn-open-folder").forEach(btn => {
+    btn.addEventListener("click", () => openFolderPath(btn.dataset.path, btn));
   });
 }
 
@@ -912,5 +1111,75 @@ function startDraftFromTask(clientId, clientName, taskType) {
   if (clientId) { showDraftClientInfo(clientId); loadDrafts(clientId); }
 }
 
+// ---- NTN Lookup ----
+let ntnLastResults = [];
+
+async function doNtnLookup() {
+  const input = document.getElementById("ntn-input").value.trim();
+  const msg = document.getElementById("ntn-msg");
+  const resultsEl = document.getElementById("ntn-results");
+  if (!input) { resultsEl.innerHTML = '<div class="empty">NTNs daalein pehle.</div>'; return; }
+  msg.textContent = "Lookup ho raha hai...";
+  resultsEl.innerHTML = "";
+  const r = await fetch(API + "/api/ntn-lookup", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ntns: input }),
+  });
+  const data = await r.json();
+  ntnLastResults = data.results || [];
+  const found = data.found || 0;
+  const total = data.total || 0;
+  msg.textContent = `✅ ${found}/${total} mil gaye`;
+  if (!ntnLastResults.length) {
+    resultsEl.innerHTML = '<div class="empty">Koi result nahi.</div>';
+    return;
+  }
+  resultsEl.innerHTML = `
+    <table style="margin-top:10px;">
+      <thead><tr>
+        <th>Input NTN</th><th>Status</th><th>Client Name</th><th>NTN (DB)</th>
+        <th>Registration</th><th>Group</th><th>Contact</th><th>Last Enriched</th>
+      </tr></thead>
+      <tbody>
+        ${ntnLastResults.map(r => `
+          <tr style="${r.found ? '' : 'background:#fee2e2;'}">
+            <td class="small" style="font-family:monospace;">${esc(r.input_ntn)}</td>
+            <td>${r.found
+              ? '<span class="badge NORMAL">FOUND</span>'
+              : '<span class="badge URGENT">NOT FOUND</span>'}</td>
+            <td>${esc(r.name || "")}</td>
+            <td class="small" style="font-family:monospace;">${esc(r.ntn || "")}</td>
+            <td class="small">${esc(r.registration_status || "")}</td>
+            <td class="small">${esc(r.group_family || "")}</td>
+            <td class="small">${esc(r.contact_info || "")}</td>
+            <td class="small">${esc(r.last_enriched || "")}</td>
+          </tr>`).join("")}
+      </tbody>
+    </table>`;
+}
+
+document.getElementById("btn-ntn-lookup").addEventListener("click", doNtnLookup);
+document.getElementById("ntn-input").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && e.ctrlKey) doNtnLookup();
+});
+document.getElementById("btn-ntn-clear").addEventListener("click", () => {
+  document.getElementById("ntn-input").value = "";
+  document.getElementById("ntn-results").innerHTML = "";
+  document.getElementById("ntn-msg").textContent = "";
+  ntnLastResults = [];
+});
+document.getElementById("btn-ntn-copy-results").addEventListener("click", async () => {
+  if (!ntnLastResults.length) { alert("Pehle lookup karein."); return; }
+  const header = "Input NTN\tFound\tClient Name\tNTN (DB)\tRegistration\tGroup\tContact";
+  const lines = ntnLastResults.map(r =>
+    [r.input_ntn, r.found ? "Yes" : "No", r.name || "", r.ntn || "",
+     r.registration_status || "", r.group_family || "", r.contact_info || ""].join("\t")
+  );
+  const tsv = [header, ...lines].join("\n");
+  await copyToClipboard(tsv);
+  flashCopied(document.getElementById("btn-ntn-copy-results"), "✅ Copied to clipboard");
+});
+
 // initial load
+renderPortalBar();
 loadToday();

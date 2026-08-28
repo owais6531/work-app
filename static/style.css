@@ -16,6 +16,7 @@
 body {
   margin: 0;
   font-family: "Segoe UI", Arial, sans-serif;
+  font-size: 16px;
   background: var(--bg);
   color: var(--text);
 }
@@ -29,7 +30,7 @@ header {
   flex-wrap: wrap;
   gap: 10px;
 }
-header h1 { font-size: 18px; margin: 0; }
+header h1 { font-size: 20px; margin: 0; }
 nav { display: flex; gap: 6px; }
 nav button {
   background: rgba(255,255,255,0.12);
@@ -38,7 +39,7 @@ nav button {
   padding: 8px 14px;
   border-radius: 6px;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 15px;
 }
 nav button.active { background: white; color: var(--accent); font-weight: 600; }
 main { padding: 20px 24px; max-width: 1200px; margin: 0 auto; }
@@ -48,18 +49,23 @@ main { padding: 20px 24px; max-width: 1200px; margin: 0 auto; }
 .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
 @media (max-width: 1000px) { .grid-3 { grid-template-columns: 1fr; } }
 .staff-group { margin-bottom: 14px; }
-.staff-name { font-weight: 700; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin-bottom: 6px; }
+.staff-name { font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin-bottom: 6px; }
 .followup-msg {
-  width: 100%; min-height: 64px; margin-top: 8px; padding: 8px 10px; font-size: 13px;
+  width: 100%; min-height: 64px; margin-top: 8px; padding: 8px 10px; font-size: 15px;
   font-family: inherit; border: 1px solid var(--border); border-radius: 6px; resize: vertical;
 }
 .col-title { font-weight: 700; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
-.badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; color: white; }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; color: white; }
 .badge.URGENT-OVERDUE, .badge.URGENT-VERIFY-DATE { background: var(--urgent); }
 .badge.URGENT { background: var(--urgent2); }
 .badge.BLOCKED { background: var(--blocked); }
 .badge.NORMAL { background: var(--normal); }
 .badge.LOW { background: var(--low); }
+.badge.Overdue { background: var(--urgent); }
+.badge.Due { background: var(--urgent2); }
+.badge.Pending { background: var(--blocked); }
+.badge.Unclear { background: var(--low); }
+.badge.Submitted { background: var(--done); }
 .badge.project-badge { font-weight: 600; }
 .badge.project-badge.Tax-Practice { background: var(--accent); }
 .badge.project-badge.QBizTax { background: #7c3aed; }
@@ -77,55 +83,63 @@ main { padding: 20px 24px; max-width: 1200px; margin: 0 auto; }
 .task-card.pri-NORMAL { border-left-color: var(--normal); }
 .task-card .row1 { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .task-card .client { font-weight: 700; }
-.task-card .meta { color: var(--muted); font-size: 12px; margin-top: 4px; }
-.task-card .notes { font-size: 13px; margin-top: 6px; }
+.task-card .meta { color: var(--muted); font-size: 13px; margin-top: 4px; }
+.task-card .notes { font-size: 15px; margin-top: 6px; }
+textarea.card-notes-edit { width: 100%; min-height: 44px; margin-top: 6px; font-size: 14px; }
 .toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; align-items: center; }
 input[type=text], select {
-  padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px;
+  padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 15px;
 }
 button.btn {
   padding: 7px 14px; border-radius: 6px; border: 1px solid var(--accent);
-  background: var(--accent); color: white; cursor: pointer; font-size: 13px;
+  background: var(--accent); color: white; cursor: pointer; font-size: 15px;
 }
 button.btn.secondary { background: white; color: var(--accent); }
-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+table { width: 100%; border-collapse: collapse; font-size: 15px; }
 th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
-th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; }
+th { color: var(--muted); font-weight: 600; font-size: 13px; text-transform: uppercase; }
 tr:hover td { background: #f9fafb; }
-.pill-select { border: none; background: transparent; font-size: 12px; font-weight: 700; }
-.empty { color: var(--muted); font-size: 13px; padding: 12px 0; }
-.small { font-size: 12px; color: var(--muted); }
+.pill-select { border: none; background: transparent; font-size: 13px; font-weight: 700; }
+.empty { color: var(--muted); font-size: 14px; padding: 12px 0; }
+.small { font-size: 13px; color: var(--muted); }
 .client-detail { margin-top: 14px; border-top: 1px solid var(--border); padding-top: 14px; }
 .toggle-group { display: flex; gap: 6px; flex-wrap: wrap; }
 .toggle-btn {
   padding: 7px 14px; border-radius: 6px; border: 1px solid var(--border);
-  background: white; color: var(--text); cursor: pointer; font-size: 13px;
+  background: white; color: var(--text); cursor: pointer; font-size: 15px;
 }
 .toggle-btn.active { background: var(--accent); color: white; border-color: var(--accent); font-weight: 600; }
 .toggle-btn:hover:not(.active) { background: #f0f4f8; }
-.cred-input { width: 100%; border: 1px solid transparent; background: transparent; font-size: 13px; padding: 3px 5px; border-radius: 4px; font-family: inherit; }
+.cred-input { width: 100%; border: 1px solid transparent; background: transparent; font-size: 15px; padding: 3px 5px; border-radius: 4px; font-family: inherit; }
 .cred-input:hover { border-color: var(--border); }
 .cred-input:focus { border-color: var(--accent); background: white; outline: none; }
-.cell-input { border: 1px solid transparent; background: transparent; font-size: 13px; padding: 3px 5px; border-radius: 4px; font-family: inherit; resize: vertical; }
+.cell-input { border: 1px solid transparent; background: transparent; font-size: 15px; padding: 3px 5px; border-radius: 4px; font-family: inherit; resize: vertical; }
 .cell-input:hover { border-color: var(--border); }
 .cell-input:focus { border-color: var(--accent); background: white; outline: none; }
 textarea.cell-input { min-height: 32px; }
 .cred-mask-wrap { display: flex; align-items: center; gap: 4px; }
 .cred-mask-wrap .cred-input { flex: 1; min-width: 70px; }
-.btn-copy { border: none; background: transparent; cursor: pointer; font-size: 13px; padding: 2px 4px; border-radius: 4px; }
+.btn-copy { border: none; background: transparent; cursor: pointer; font-size: 15px; padding: 2px 4px; border-radius: 4px; }
 .btn-copy:hover { background: #f0f4f8; }
 a.link { color: var(--accent); text-decoration: none; }
 a.link:hover { text-decoration: underline; }
+.portal-bar-wrap {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 8px 24px; background: var(--panel); border-bottom: 1px solid var(--border);
+}
+.portal-bar { display: flex; gap: 6px; flex-wrap: wrap; }
+a.toggle-btn.portal-btn { text-decoration: none; padding: 5px 12px; font-size: 13px; }
+.portal-task-link { font-size: 13px; margin-left: 4px; white-space: nowrap; }
 .picker-results {
   position: absolute; z-index: 10; top: 100%; left: 0; width: 260px;
   background: white; border: 1px solid var(--border); border-radius: 6px;
   box-shadow: 0 4px 12px rgba(0,0,0,0.12); max-height: 220px; overflow-y: auto;
 }
-.picker-results .picker-row { padding: 7px 10px; font-size: 13px; cursor: pointer; }
+.picker-results .picker-row { padding: 7px 10px; font-size: 15px; cursor: pointer; }
 .picker-results .picker-row:hover { background: #f0f4f8; }
-.checklist-toggle { cursor: pointer; font-size: 12px; font-weight: 700; color: var(--accent); background: none; border: none; padding: 0; }
+.checklist-toggle { cursor: pointer; font-size: 13px; font-weight: 700; color: var(--accent); background: none; border: none; padding: 0; }
 .checklist-box { margin-top: 6px; min-width: 180px; }
-.checklist-box label { display: flex; align-items: center; gap: 6px; font-size: 12px; margin-bottom: 3px; cursor: pointer; }
+.checklist-box label { display: flex; align-items: center; gap: 6px; font-size: 13px; margin-bottom: 3px; cursor: pointer; }
 .checklist-box label input { margin: 0; }
 .checklist-box label.done span { text-decoration: line-through; color: var(--muted); }
 #btn-note-mic.recording { background: var(--urgent); color: white; border-color: var(--urgent); }
