@@ -35,6 +35,14 @@ DESTRUCTIVE_RE = re.compile(
 
 
 def coerce(value):
+    # Long digit strings (NTNs, CNICs, STRNs, registration numbers) must stay strings.
+    # int()/float() would drop a leading zero, and the libsql/Hrana remote protocol has
+    # been observed round-tripping big Python ints back as floats (e.g. "...897" ->
+    # "...897.0") - both silently corrupt the stored value. Row-id style params in this
+    # script are always short, so a 7+ digit all-numeric string is never meant as a
+    # true integer bind value here.
+    if isinstance(value, str) and value.lstrip("-").isdigit() and len(value.lstrip("-")) >= 7:
+        return value
     try:
         return int(value)
     except (TypeError, ValueError):

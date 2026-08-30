@@ -555,6 +555,11 @@ document.getElementById("btn-export").addEventListener("click", async () => {
 
 // ---- Passwords (local-only) ----
 // ---- Sales Tax Returns ----
+let stRevealed = false;
+let stRows = [];
+
+function maskDots(v) { return v ? "•".repeat(Math.min(v.length, 10)) : ""; }
+
 async function loadSalesTax() {
   const q = document.getElementById("st-search").value.trim();
   const status = document.getElementById("st-status").value;
@@ -565,43 +570,144 @@ async function loadSalesTax() {
   if (authority) params.set("authority", authority);
   const r = await fetch(API + "/api/sales-tax-returns?" + params.toString());
   const rows = await r.json();
+  stRows = rows;
   const tbody = document.getElementById("salestax-body");
   if (!rows.length) {
-    tbody.innerHTML = '<tr><td colspan="6" class="empty">Koi record nahi mila.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" class="empty">Koi record nahi mila.</td></tr>';
     return;
   }
-  const statuses = ["Overdue", "Due", "Pending", "Unclear", "Submitted"];
   tbody.innerHTML = rows.map(s => `
-    <tr data-id="${s.id}">
-      <td><input type="text" class="st-input" data-field="client_name" value="${esc(s.client_name || "")}" style="min-width:200px;"></td>
-      <td><input type="text" class="st-input" data-field="registration_number" value="${esc(s.registration_number || "")}" style="width:130px;"></td>
-      <td><input type="text" class="st-input" data-field="authority" value="${esc(s.authority || "")}" style="width:90px;"></td>
+    <tr class="st-readonly-row" data-id="${s.id}">
+      <td>${esc(s.client_name || "")}</td>
+      <td>${esc(s.registration_number || "")}</td>
       <td>
-        <select class="pill-select st-input" data-field="status">
-          ${statuses.map(x => `<option ${x === s.status ? "selected" : ""}>${x}</option>`).join("")}
-        </select>
+        <span class="cred-mask-wrap">
+          <span class="st-pw-cell">${stRevealed ? esc(s.password || "") : maskDots(s.password || "")}</span>
+          ${s.password ? '<button type="button" class="btn-copy" data-copy="password" title="Copy">📋</button>' : ""}
+        </span>
       </td>
-      <td><input type="text" class="st-input" data-field="submitted_upto" value="${esc(s.submitted_upto || "")}" style="width:90px;" placeholder="MMM-YY"></td>
-      <td><input type="text" class="st-input" data-field="comments" value="${esc(s.comments || "")}" style="min-width:280px;"></td>
+      <td>
+        <span class="cred-mask-wrap">
+          <span class="st-pin-cell">${stRevealed ? esc(s.pin || "") : maskDots(s.pin || "")}</span>
+          ${s.pin ? '<button type="button" class="btn-copy" data-copy="pin" title="Copy">📋</button>' : ""}
+        </span>
+      </td>
+      <td>${esc(s.authority || "")}</td>
+      <td><span class="badge ${esc(s.status || "")}">${esc(s.status || "")}</span></td>
+      <td>${esc(s.submitted_upto || "")}</td>
+      <td>${esc(s.comments || "")}</td>
+      <td><button type="button" class="btn-row-edit" title="Edit">✏️</button></td>
     </tr>`).join("");
 
-  tbody.querySelectorAll(".st-input").forEach(input => {
-    const save = async () => {
-      const id = input.closest("tr").dataset.id;
-      const field = input.dataset.field;
-      await fetch(API + `/api/sales-tax-returns/${id}`, {
-        method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ [field]: input.value }),
-      });
-      if (field === "status") loadSalesTax();
-    };
-    input.addEventListener("change", save);
+  tbody.querySelectorAll(".btn-copy").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const tr = btn.closest("tr");
+      const id = tr.dataset.id;
+      const row = stRows.find(x => String(x.id) === id);
+      const val = (btn.dataset.copy === "pin" ? row.pin : row.password) || "";
+      if (!val) return;
+      try { await navigator.clipboard.writeText(val); } catch (e) {}
+      const original = btn.textContent;
+      btn.textContent = "✅";
+      setTimeout(() => { btn.textContent = original; }, 900);
+    });
+  });
+  tbody.querySelectorAll(".btn-row-edit").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const id = btn.closest("tr").dataset.id;
+      const row = stRows.find(x => String(x.id) === id);
+      openStModal(row);
+    });
   });
 }
 document.getElementById("st-search").addEventListener("input", loadSalesTax);
 document.getElementById("st-status").addEventListener("change", loadSalesTax);
 document.getElementById("st-authority").addEventListener("change", loadSalesTax);
 document.getElementById("btn-st-refresh").addEventListener("click", loadSalesTax);
+document.getElementById("btn-st-showall").addEventListener("click", () => {
+  stRevealed = !stRevealed;
+  document.getElementById("btn-st-showall").textContent = stRevealed ? "🙈 Hide All" : "👁 Show All";
+  loadSalesTax();
+});
+
+function openStModal(row) {
+  document.getElementById("st-modal-title").textContent = row ? "Edit Sales Tax Client" : "Add Sales Tax Client";
+  document.getElementById("st-modal-id").value = row ? row.id : "";
+  document.getElementById("st-modal-cred-id").value = row && row.cred_id ? row.cred_id : "";
+  document.getElementById("st-modal-client").value = row ? (row.client_name || "") : "";
+  document.getElementById("st-modal-reg").value = row ? (row.registration_number || "") : "";
+  document.getElementById("st-modal-authority").value = row ? (row.authority || "") : "";
+  document.getElementById("st-modal-status").value = row ? (row.status || "Pending") : "Pending";
+  document.getElementById("st-modal-submitted").value = row ? (row.submitted_upto || "") : "";
+  document.getElementById("st-modal-comments").value = row ? (row.comments || "") : "";
+  document.getElementById("st-modal-password").value = row ? (row.password || "") : "";
+  document.getElementById("st-modal-pin").value = row ? (row.pin || "") : "";
+
+  document.getElementById("btn-st-show-delete").style.display = row ? "inline-block" : "none";
+  document.getElementById("st-delete-zone").style.display = "none";
+  document.getElementById("st-delete-confirm-text").value = "";
+  document.getElementById("btn-st-delete-confirm").disabled = true;
+
+  document.getElementById("st-modal-overlay").style.display = "flex";
+}
+function closeStModal() {
+  document.getElementById("st-modal-overlay").style.display = "none";
+}
+document.getElementById("btn-st-add").addEventListener("click", () => openStModal(null));
+document.getElementById("btn-st-modal-cancel").addEventListener("click", closeStModal);
+document.getElementById("st-modal-overlay").addEventListener("click", (e) => {
+  if (e.target.id === "st-modal-overlay") closeStModal();
+});
+document.getElementById("btn-st-show-delete").addEventListener("click", () => {
+  document.getElementById("st-delete-zone").style.display = "block";
+});
+document.getElementById("st-delete-confirm-text").addEventListener("input", (e) => {
+  document.getElementById("btn-st-delete-confirm").disabled = e.target.value.trim().toLowerCase() !== "delete";
+});
+document.getElementById("btn-st-delete-confirm").addEventListener("click", async () => {
+  const id = document.getElementById("st-modal-id").value;
+  if (!id) return;
+  await fetch(API + `/api/sales-tax-returns/${id}`, { method: "DELETE" });
+  closeStModal();
+  loadSalesTax();
+});
+document.getElementById("btn-st-modal-save").addEventListener("click", async () => {
+  const id = document.getElementById("st-modal-id").value;
+  const payload = {
+    client_name: document.getElementById("st-modal-client").value.trim(),
+    registration_number: document.getElementById("st-modal-reg").value.trim(),
+    authority: document.getElementById("st-modal-authority").value,
+    status: document.getElementById("st-modal-status").value,
+    submitted_upto: document.getElementById("st-modal-submitted").value.trim(),
+    comments: document.getElementById("st-modal-comments").value.trim(),
+    password: document.getElementById("st-modal-password").value,
+    pin: document.getElementById("st-modal-pin").value,
+  };
+  const credId = document.getElementById("st-modal-cred-id").value;
+  if (credId) payload.cred_id = Number(credId);
+  if (!payload.client_name) { alert("Client name required hai."); return; }
+
+  if (id) {
+    await fetch(API + `/api/sales-tax-returns/${id}`, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  } else {
+    const r = await fetch(API + "/api/sales-tax-returns", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const created = await r.json();
+    if (payload.password || payload.pin) {
+      await fetch(API + `/api/sales-tax-returns/${created.id}`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: payload.password, pin: payload.pin, client_name: payload.client_name }),
+      });
+    }
+  }
+  closeStModal();
+  loadSalesTax();
+});
 
 let credsRevealed = false;
 

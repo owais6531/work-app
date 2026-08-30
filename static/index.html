@@ -184,8 +184,9 @@
   <section id="tab-salestax" style="display:none;">
     <div class="panel">
       <div class="small" style="margin-bottom:10px;">
-        Sirf Sales Tax waale clients. Status/registration/comments seedha edit ho sakte hain —
-        blur ya change par save ho jata hai. "Overdue"/"Due" wale zyada urgent hain.
+        Sirf Sales Tax waale clients. "Overdue"/"Due" wale zyada urgent hain. Password/Pin
+        🔒 is computer ke local-only credentials.db se aate hain, Turso pe sync nahi hote.
+        Row edit karne ke liye ✏️ Edit dabayein — seedha type kar ke save nahi hota.
       </div>
       <div class="toolbar">
         <input type="text" id="st-search" placeholder="Client/registration number search...">
@@ -199,16 +200,72 @@
           <option>FBR</option><option>SRB</option><option>PRA</option><option>BRA</option><option>KPRA</option><option>KPK</option>
         </select>
         <button class="btn secondary" id="btn-st-refresh">Refresh</button>
+        <button class="btn secondary" id="btn-st-showall">👁 Show All</button>
+        <button class="btn" id="btn-st-add">+ Add Client</button>
       </div>
       <table>
         <thead><tr>
-          <th>Client</th><th>Registration No.</th><th>Authority</th><th>Status</th>
-          <th>Submitted Upto</th><th>Comments</th>
+          <th>Client</th><th>Registration No.</th><th>Password</th><th>Pin</th><th>Authority</th><th>Status</th>
+          <th>Submitted Upto</th><th>Comments</th><th></th>
         </tr></thead>
         <tbody id="salestax-body"></tbody>
       </table>
     </div>
   </section>
+
+  <div id="st-modal-overlay" class="modal-overlay" style="display:none;">
+    <div class="modal-box">
+      <h3 id="st-modal-title">Sales Tax Client</h3>
+      <input type="hidden" id="st-modal-id">
+      <input type="hidden" id="st-modal-cred-id">
+      <label class="modal-field">Client Name
+        <input type="text" id="st-modal-client">
+      </label>
+      <label class="modal-field">Registration No.
+        <input type="text" id="st-modal-reg">
+      </label>
+      <label class="modal-field">Authority
+        <select id="st-modal-authority">
+          <option value="">-</option>
+          <option>FBR</option><option>SRB</option><option>PRA</option><option>BRA</option><option>KPRA</option><option>KPK</option>
+        </select>
+      </label>
+      <label class="modal-field">Status
+        <select id="st-modal-status">
+          <option>Overdue</option><option>Due</option><option>Pending</option>
+          <option>Unclear</option><option>Submitted</option>
+        </select>
+      </label>
+      <label class="modal-field">Submitted Upto
+        <input type="text" id="st-modal-submitted" placeholder="MMM-YY">
+      </label>
+      <label class="modal-field">Comments
+        <input type="text" id="st-modal-comments">
+      </label>
+      <label class="modal-field">Password
+        <input type="text" id="st-modal-password">
+      </label>
+      <label class="modal-field">Pin
+        <input type="text" id="st-modal-pin">
+      </label>
+      <div id="st-delete-zone" style="display:none; margin-top:16px; padding-top:12px; border-top:1px solid var(--border);">
+        <div class="small" style="color:var(--urgent); margin-bottom:6px;">
+          Ye client permanently delete ho jayega. Confirm karne ke liye neeche <b>delete</b> type karein.
+        </div>
+        <div class="toolbar">
+          <input type="text" id="st-delete-confirm-text" placeholder="delete" style="width:120px;">
+          <button class="btn secondary" id="btn-st-delete-confirm" disabled>Delete Client</button>
+        </div>
+      </div>
+      <div class="toolbar" style="justify-content:space-between; margin-top:14px;">
+        <button class="btn secondary" id="btn-st-show-delete" style="display:none; color:var(--urgent); border-color:var(--urgent);">🗑 Delete Client</button>
+        <div class="toolbar" style="justify-content:flex-end;">
+          <button class="btn secondary" id="btn-st-modal-cancel">Cancel</button>
+          <button class="btn" id="btn-st-modal-save">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <section id="tab-ntnlookup" style="display:none;">
     <div class="panel">

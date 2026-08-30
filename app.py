@@ -717,6 +717,22 @@ def api_sales_tax_returns():
         params += [f"%{q}%"] * 3
     sql += " ORDER BY CASE status WHEN 'Overdue' THEN 0 WHEN 'Due' THEN 1 WHEN 'Pending' THEN 2 WHEN 'Unclear' THEN 3 WHEN 'Submitted' THEN 4 ELSE 5 END, client_name"
     rows = rows_as_dicts(db.execute(sql, params))
+
+    # Password/pin come from the LOCAL-ONLY credentials.db (never Turso) - matched by
+    # exact case-insensitive client name so we never show the wrong client's password.
+    creds_db = get_creds_db()
+    cred_rows = creds_db.execute("SELECT id, client_name, password, pin FROM credentials").fetchall()
+    creds_by_name = {}
+    for c in cred_rows:
+        key = (c["client_name"] or "").strip().lower()
+        if key and key not in creds_by_name:
+            creds_by_name[key] = c
+    for row in rows:
+        match = creds_by_name.get((row.get("client_name") or "").strip().lower())
+        row["cred_id"] = match["id"] if match else None
+        row["password"] = match["password"] if match else ""
+        row["pin"] = match["pin"] if match else ""
+
     return jsonify(rows)
 
 
@@ -736,14 +752,40 @@ def api_sales_tax_return_detail(row_id):
         if f in data:
             updates.append(f"{f} = ?")
             params.append(data[f])
-    if not updates:
-        return jsonify({"ok": True})
-    now = datetime.datetime.now().isoformat(timespec="seconds")
-    updates.append("updated_at = ?")
-    params.append(now)
-    params.append(row_id)
-    db.execute(f"UPDATE sales_tax_returns SET {', '.join(updates)} WHERE id = ?", params)
-    db.commit()
+    if updates:
+        now = datetime.datetime.now().isoformat(timespec="seconds")
+        updates.append("updated_at = ?")
+        params.append(now)
+        params.append(row_id)
+        db.execute(f"UPDATE sales_tax_returns SET {', '.join(updates)} WHERE id = ?", params)
+        db.commit()
+
+    # Password/pin live in the separate local-only credentials.db, matched/created by
+    # client name - never written into the Turso sales_tax_returns table.
+    if "password" in data or "pin" in data:
+        creds_db = get_creds_db()
+        cred_id = data.get("cred_id")
+        if cred_id:
+            cred_updates, cred_params = [], []
+            if "password" in data:
+                cred_updates.append("password = ?")
+                cred_params.append(data["password"])
+            if "pin" in data:
+                cred_updates.append("pin = ?")
+                cred_params.append(data["pin"])
+            cred_params.append(cred_id)
+            creds_db.execute(f"UPDATE credentials SET {', '.join(cred_updates)} WHERE id = ?", cred_params)
+        else:
+            client_name = data.get("client_name")
+            if not client_name:
+                row = db.execute("SELECT client_name FROM sales_tax_returns WHERE id = ?", (row_id,)).fetchone()
+                client_name = row["client_name"] if row else None
+            creds_db.execute(
+                "INSERT INTO credentials (source_sheet, client_name, password, pin) VALUES (?,?,?,?)",
+                ("Sales Tax Tab", client_name, data.get("password", ""), data.get("pin", "")),
+            )
+        creds_db.commit()
+
     return jsonify({"ok": True})
 
 
