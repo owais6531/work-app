@@ -14,6 +14,10 @@ On Error Goto 0
 
 If Not alreadyRunning Then
     WshShell.CurrentDirectory = appDir
+    ' Pull latest code from GitHub before starting - best-effort: if git isn't found, there
+    ' are local uncommitted edits, or there's no network, this just no-ops/fails quietly and
+    ' the app still starts on whatever code is already on disk.
+    WshShell.Run "cmd /c git pull --ff-only >> update.log 2>&1", 0, True
     WshShell.Run "pythonw.exe app.py", 0, False
     WScript.Sleep 2500
 End If

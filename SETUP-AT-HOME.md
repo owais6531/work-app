@@ -32,7 +32,12 @@ sirf ek cheez hai jo Umair se poochni padegi (step 4, Turso token).
    manual data copy nahi karni, sab paths ab khud-b-khud is computer ke sahi username/location
    se resolve hote hain).
 6. Khud-b-khud startup ke liye: `launch_dashboard.vbs` ko is computer ke Startup folder mein
-   copy karo (`shell:startup` Run box mein type karke khulta hai).
+   copy karo (`shell:startup` Run box mein type karke khulta hai). Ye script ab har boot par
+   pehle khud `git pull --ff-only` karti hai, phir server start karti hai — is liye jab bhi
+   GitHub par koi update push ho, agle restart/login par khud-b-khud mil jayega. **Startup
+   folder ki copy git-tracked nahi hai** — agar future mein `launch_dashboard.vbs` khud update
+   ho (repo ke andar), to Startup folder wali copy ko bhi manually dobara copy/overwrite karna
+   hoga taky wo bhi naya version chalaye.
 7. Umair ko confirm karo ke ho gaya, aur usay bata do ke office aur ghar dono computers ab
    **isi ek** Turso database ko share kar rahe hain — kahin bhi task add/update ho, dusri jagah
    turant dikhega.

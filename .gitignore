@@ -10,5 +10,6 @@ office_replica.db-*
 # Runtime artifacts
 server.log
 server.pid
+update.log
 __pycache__/
 *.pyc
