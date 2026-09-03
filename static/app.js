@@ -555,10 +555,7 @@ document.getElementById("btn-export").addEventListener("click", async () => {
 
 // ---- Passwords (local-only) ----
 // ---- Sales Tax Returns ----
-let stRevealed = false;
 let stRows = [];
-
-function maskDots(v) { return v ? "•".repeat(Math.min(v.length, 10)) : ""; }
 
 async function loadSalesTax() {
   const q = document.getElementById("st-search").value.trim();
@@ -582,13 +579,13 @@ async function loadSalesTax() {
       <td>${esc(s.registration_number || "")}</td>
       <td>
         <span class="cred-mask-wrap">
-          <span class="st-pw-cell">${stRevealed ? esc(s.password || "") : maskDots(s.password || "")}</span>
+          <span class="st-pw-cell">${esc(s.password || "")}</span>
           ${s.password ? '<button type="button" class="btn-copy" data-copy="password" title="Copy">📋</button>' : ""}
         </span>
       </td>
       <td>
         <span class="cred-mask-wrap">
-          <span class="st-pin-cell">${stRevealed ? esc(s.pin || "") : maskDots(s.pin || "")}</span>
+          <span class="st-pin-cell">${esc(s.pin || "")}</span>
           ${s.pin ? '<button type="button" class="btn-copy" data-copy="pin" title="Copy">📋</button>' : ""}
         </span>
       </td>
@@ -624,11 +621,6 @@ document.getElementById("st-search").addEventListener("input", loadSalesTax);
 document.getElementById("st-status").addEventListener("change", loadSalesTax);
 document.getElementById("st-authority").addEventListener("change", loadSalesTax);
 document.getElementById("btn-st-refresh").addEventListener("click", loadSalesTax);
-document.getElementById("btn-st-showall").addEventListener("click", () => {
-  stRevealed = !stRevealed;
-  document.getElementById("btn-st-showall").textContent = stRevealed ? "🙈 Hide All" : "👁 Show All";
-  loadSalesTax();
-});
 
 function openStModal(row) {
   document.getElementById("st-modal-title").textContent = row ? "Edit Sales Tax Client" : "Add Sales Tax Client";

@@ -156,6 +156,10 @@ a.toggle-btn.portal-btn { text-decoration: none; padding: 5px 12px; font-size: 1
 .modal-box h3 { margin: 0 0 14px; }
 .modal-field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); margin-bottom: 10px; }
 .modal-field input, .modal-field select { font-size: 15px; color: var(--text); }
+.st-modal-comments {
+  font-family: inherit; font-size: 15px; color: var(--text); padding: 6px 8px;
+  border: 1px solid var(--border); border-radius: 6px; min-height: 60px; resize: both;
+}
 .st-readonly-row td { color: var(--text); }
 .btn-row-edit { border: none; background: transparent; cursor: pointer; font-size: 15px; padding: 2px 6px; border-radius: 4px; }
 .btn-row-edit:hover { background: #f0f4f8; }
