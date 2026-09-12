@@ -81,13 +81,12 @@ migration cost (already wired into the real Drive folder structure); ships chang
         International alongside SS Textile) were linked to the new SS Textile Industries
         record as the primary party, since one task can only hold one `client_id` — a real
         instance of the "flat task model can't hold multi-party matters" gap.
-      - **⚠️ Data-quality flag**: while confirming "Razi Darmalton LLP", Owais's reply
-        included what look like **plaintext portal credentials** ("Razi!9740", "Pakistan!123"
-        style strings) and a code "A499740" of unclear purpose. None of this was stored
-        anywhere (not in the NTN field, not elsewhere) — flagging per the standing house rule
-        on credentials pasted into chat (CLAUDE.md section 7). If "A499740" is meant to be
-        recorded (SECP registration number?), it needs to go in the correct field
-        deliberately, not guessed into NTN.
+      - **⚠️ Data-quality flag (resolved)**: while confirming "Razi Darmalton LLP", Owais's
+        reply included what look like **plaintext portal credentials** ("Razi!9740",
+        "Pakistan!123" style strings) — these were never stored anywhere, flagging per the
+        standing house rule on credentials pasted into chat (CLAUDE.md section 7). The code
+        "A499740" was confirmed by Owais (2026-09-12) to be the client's actual NTN and has
+        been saved to client 427's `ntn` field.
       Open unmatched count: 60 → 40 (all remaining are correctly non-client rows).
 
 **Decision (2026-09-12):** Client Portal and Time Tracking — Owais chose **"baad mein, abhi
