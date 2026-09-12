@@ -34,17 +34,33 @@ function renderPortalBar() {
   el.innerHTML = portals.map(p =>
     `<a class="toggle-btn portal-btn" href="${esc(p.url)}" target="_blank" rel="noopener">${esc(p.name)}</a>`
   ).join("") + `<button class="toggle-btn" id="btn-add-portal" type="button">+ Portal</button>`;
-  document.getElementById("btn-add-portal").addEventListener("click", () => {
-    const name = prompt("Portal ka naam (jaise LEAP):");
-    if (!name) return;
-    const url = prompt("Portal ka URL (https:// se shuru):");
-    if (!url) return;
-    const list = getCustomPortals();
-    list.push({ name, url });
-    saveCustomPortals(list);
-    renderPortalBar();
-  });
+  document.getElementById("btn-add-portal").addEventListener("click", openNewPortalModal);
 }
+function openNewPortalModal() {
+  document.getElementById("new-portal-name").value = "";
+  document.getElementById("new-portal-url").value = "";
+  document.getElementById("new-portal-msg").textContent = "";
+  document.getElementById("new-portal-modal-overlay").style.display = "flex";
+  document.getElementById("new-portal-name").focus();
+}
+function closeNewPortalModal() {
+  document.getElementById("new-portal-modal-overlay").style.display = "none";
+}
+document.getElementById("btn-new-portal-cancel").addEventListener("click", closeNewPortalModal);
+document.getElementById("new-portal-modal-overlay").addEventListener("click", (e) => {
+  if (e.target.id === "new-portal-modal-overlay") closeNewPortalModal();
+});
+document.getElementById("btn-new-portal-save").addEventListener("click", () => {
+  const name = document.getElementById("new-portal-name").value.trim();
+  const url = document.getElementById("new-portal-url").value.trim();
+  const msg = document.getElementById("new-portal-msg");
+  if (!name || !url) { msg.textContent = "Naam aur URL dono zaroori hain."; msg.style.color = "var(--urgent)"; return; }
+  const list = getCustomPortals();
+  list.push({ name, url });
+  saveCustomPortals(list);
+  renderPortalBar();
+  closeNewPortalModal();
+});
 // Guess which portal a task belongs to from its task_type/notes/client registration_status.
 function guessPortalForTask(t) {
   const haystack = [t.task_type, t.notes, t.registration_status].filter(Boolean).join(" ");
@@ -72,6 +88,15 @@ function esc(s) {
 function linkify(s) {
   const escaped = esc(s);
   return escaped.replace(/(https?:\/\/[^\s<]+)/g, (url) => `<a class="link" href="${url}" target="_blank">${url}</a>`);
+}
+// Shared debounce for the tab search boxes (Clients/Tasks/Sales Tax/Credentials) - one
+// place to tune the delay, and it's why lists no longer refetch on every keystroke.
+function debounce(fn, delay = 250) {
+  let timer = null;
+  return (...args) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn(...args), delay);
+  };
 }
 function parseChecklist(raw) {
   if (!raw) return [];
@@ -151,6 +176,20 @@ function renderStaffGroups(list) {
     `<div class="staff-group"><div class="staff-name">${esc(name)}</div>${groups[name].map(taskCardHtml).join("")}</div>`
   ).join("");
 }
+function dueDateMeta(dueStr) {
+  if (!dueStr) return "";
+  const due = new Date(dueStr + "T00:00:00");
+  if (isNaN(due)) return "· due " + esc(dueStr);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const diffDays = Math.round((today - due) / 86400000);
+  if (diffDays > 0) {
+    const label = diffDays === 1 ? "1 day overdue" : `${diffDays} days overdue`;
+    return `· <span class="due-overdue">⚠ ${esc(label)}</span>`;
+  }
+  if (diffDays === 0) return `· <span class="due-today">⚠ due today</span>`;
+  return "· due " + esc(dueStr);
+}
 function taskCardHtml(t) {
   const client = t.client_display_name || t.client_name_raw || "-";
   const clientNameHtml = t.client_id
@@ -171,7 +210,7 @@ function taskCardHtml(t) {
       </span>
     </div>
     ${idLine}
-    <div class="meta">${esc(t.task_type || "")} ${t.due_date ? "· due " + esc(t.due_date) : ""} ${t.blocked_on ? "· blocked: " + esc(t.blocked_on) : ""}${portalLink}</div>
+    <div class="meta">${esc(t.task_type || "")} ${dueDateMeta(t.due_date)} ${t.blocked_on ? "· blocked: " + esc(t.blocked_on) : ""}${portalLink}</div>
     <textarea class="cell-input notes card-notes-edit" placeholder="Note / instruction likhein...">${esc(t.notes || "")}</textarea>
     <div style="margin-top:6px;">
       <select class="pill-select card-status-select">
@@ -482,8 +521,8 @@ async function updateTask(id, patch) {
     method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch),
   });
 }
-["task-search","f-status","f-priority","f-owner","f-project","f-day"].forEach(id => {
-  document.getElementById(id).addEventListener("input", loadTasks);
+document.getElementById("task-search").addEventListener("input", debounce(loadTasks));
+["f-status","f-priority","f-owner","f-project","f-day"].forEach(id => {
   document.getElementById(id).addEventListener("change", loadTasks);
 });
 document.getElementById("btn-refresh-tasks").addEventListener("click", loadTasks);
@@ -512,19 +551,37 @@ async function loadClients() {
     tr.addEventListener("click", () => showClientDetail(tr.dataset.id));
   });
 }
-document.getElementById("client-search").addEventListener("input", loadClients);
+document.getElementById("client-search").addEventListener("input", debounce(loadClients));
 
-document.getElementById("btn-add-client").addEventListener("click", async () => {
-  const name = (prompt("Naye client ka naam:") || "").trim();
-  if (!name) return;
-  const ntn = (prompt("NTN (optional, khali chhod sakte hain):") || "").trim();
-  const cnic = (prompt("CNIC (optional):") || "").trim();
+function openNewClientModal() {
+  document.getElementById("new-client-name").value = "";
+  document.getElementById("new-client-ntn").value = "";
+  document.getElementById("new-client-cnic").value = "";
+  document.getElementById("new-client-msg").textContent = "";
+  document.getElementById("new-client-modal-overlay").style.display = "flex";
+  document.getElementById("new-client-name").focus();
+}
+function closeNewClientModal() {
+  document.getElementById("new-client-modal-overlay").style.display = "none";
+}
+document.getElementById("btn-add-client").addEventListener("click", openNewClientModal);
+document.getElementById("btn-new-client-cancel").addEventListener("click", closeNewClientModal);
+document.getElementById("new-client-modal-overlay").addEventListener("click", (e) => {
+  if (e.target.id === "new-client-modal-overlay") closeNewClientModal();
+});
+document.getElementById("btn-new-client-save").addEventListener("click", async () => {
+  const name = document.getElementById("new-client-name").value.trim();
+  const msg = document.getElementById("new-client-msg");
+  if (!name) { msg.textContent = "Name zaroori hai."; msg.style.color = "var(--urgent)"; return; }
+  const ntn = document.getElementById("new-client-ntn").value.trim();
+  const cnic = document.getElementById("new-client-cnic").value.trim();
   const r = await fetch(API + "/api/clients", {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name, ntn, cnic }),
   });
   const data = await r.json();
-  if (!r.ok) { alert("Client add nahi ho saka: " + (data.error || "unknown error")); return; }
+  if (!r.ok) { msg.textContent = "Add nahi ho saka: " + (data.error || "unknown error"); msg.style.color = "var(--urgent)"; return; }
+  closeNewClientModal();
   document.getElementById("client-search").value = name;
   await loadClients();
   showClientDetail(data.id);
@@ -867,7 +924,7 @@ async function loadSalesTax() {
     });
   });
 }
-document.getElementById("st-search").addEventListener("input", loadSalesTax);
+document.getElementById("st-search").addEventListener("input", debounce(loadSalesTax));
 document.getElementById("st-status").addEventListener("change", loadSalesTax);
 document.getElementById("st-authority").addEventListener("change", loadSalesTax);
 document.getElementById("btn-st-refresh").addEventListener("click", loadSalesTax);
@@ -1016,7 +1073,7 @@ async function loadCredentials() {
     });
   });
 }
-document.getElementById("cred-search").addEventListener("input", loadCredentials);
+document.getElementById("cred-search").addEventListener("input", debounce(loadCredentials));
 document.getElementById("btn-cred-showall").addEventListener("click", () => {
   credsRevealed = !credsRevealed;
   document.getElementById("btn-cred-showall").textContent = credsRevealed ? "🙈 Hide All" : "👁 Show All";

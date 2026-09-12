@@ -31,7 +31,7 @@ header {
   gap: 10px;
 }
 header h1 { font-size: 20px; margin: 0; }
-nav { display: flex; gap: 6px; }
+nav { display: flex; gap: 6px; flex-wrap: wrap; }
 nav button {
   background: rgba(255,255,255,0.12);
   border: none;
@@ -84,6 +84,8 @@ main { padding: 20px 24px; max-width: 1200px; margin: 0 auto; }
 .task-card .row1 { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .task-card .client { font-weight: 700; }
 .task-card .meta { color: var(--muted); font-size: 13px; margin-top: 4px; }
+.due-overdue { color: var(--urgent); font-weight: 700; }
+.due-today { color: var(--urgent2); font-weight: 700; }
 .task-card .notes { font-size: 15px; margin-top: 6px; }
 textarea.card-notes-edit { width: 100%; min-height: 44px; margin-top: 6px; font-size: 14px; }
 .toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; align-items: center; }
