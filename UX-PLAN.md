@@ -112,3 +112,31 @@ Sources consulted:
 - [MDN — `color-scheme` CSS property](https://developer.mozilla.org/en-US/docs/Web/CSS/color-scheme)
 - [DubBot — Dark Mode: Best Practices for Accessibility](https://dubbot.com/dubblog/2023/dark-mode-a11y.html)
 - [ColorContrast.org — Dark Mode Contrast: WCAG-Compliant Dark UI Guide](https://www.colorcontrast.org/blog/dark-mode-contrast-accessibility-guide/)
+
+## Correction #2 — glaring header/accent + harsh toast (2026-09-12, same day)
+
+Owais reported the colours were still "chubh rahe hain" (stinging the eyes) after the first
+fix. The specific culprit: `--accent` was doing two jobs that need opposite brightness -
+filling large surfaces with white text on top (header bar, buttons, active badges - needs to
+stay dark/moderate) **and** being used as plain text/link colour sitting on a dark panel
+(needs to be light to read). The dark-mode value (`#6ea8dc`, a bright sky-blue) was tuned for
+the second job, which made the full-width header bar glow uncomfortably bright - the first
+thing the eye hits on every screen.
+
+**Fix:**
+- Split the token: `--accent` (dark mode `#2f5f8f`, moderate navy-blue) now handles every
+  fill-with-white-text role - header background, `button.btn`, `.toggle-btn.active`, the
+  Tax Practice project badge. `--accent-text` (dark mode `#6ea8dc`, the old bright value)
+  now handles every plain-text role - links, the active nav-tab label, `.checklist-toggle`,
+  client-link hover. Light mode both tokens equal the original `#1f4e78` - no visual change
+  there.
+- The toast used an "auto-invert" trick (`background: var(--text)`) that, in dark mode, meant
+  a light/white chip flashing at the bottom of an otherwise dark screen on every save - exactly
+  the kind of glare the DubBot/ColorContrast accessibility sources warn against. Changed it to
+  a theme-consistent `--panel-2` chip with a `--border` outline instead, so it reads clearly
+  without flashing bright.
+
+Verified live: header is now a calm muted navy instead of a bright blue bar; toast confirmed
+via computed styles (`background: var(--panel-2)`, `color: var(--text)`) instead of a
+visual-timing screenshot, since the toast's ~1.8s auto-hide is shorter than the tool's
+round-trip latency to reliably screenshot mid-display.

@@ -10,6 +10,7 @@
   --muted: #6b7280;
   --border: #e5e7eb;
   --accent: #1f4e78;
+  --accent-text: #1f4e78;
   --urgent: #c00000;
   --urgent2: #e26b0a;
   --blocked: #808080;
@@ -27,7 +28,12 @@
     --text: #e4e9ec;
     --muted: #93a3ac;
     --border: #2b353d;
-    --accent: #6ea8dc;
+    /* --accent stays moderate/dark - it fills large surfaces (header, buttons, active
+       badges) with white text on top, so it must not be bright. --accent-text is the
+       lighter twin used only where accent is the text/link colour sitting on a dark
+       panel - the two roles need opposite brightness, one token can't serve both. */
+    --accent: #2f5f8f;
+    --accent-text: #6ea8dc;
     --urgent: #c0392b;
     --urgent2: #b3651d;
     --blocked: #5c6670;
@@ -70,7 +76,7 @@ nav button {
   cursor: pointer;
   font-size: 15px;
 }
-nav button.active { background: var(--panel); color: var(--accent); font-weight: 600; }
+nav button.active { background: var(--panel); color: var(--accent-text); font-weight: 600; }
 main { padding: 20px 24px; max-width: 1200px; margin: 0 auto; }
 .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
@@ -131,7 +137,7 @@ button.btn {
   padding: 7px 14px; border-radius: 6px; border: 1px solid var(--accent);
   background: var(--accent); color: white; cursor: pointer; font-size: 15px;
 }
-button.btn.secondary { background: var(--panel); color: var(--accent); }
+button.btn.secondary { background: var(--panel); color: var(--accent-text); }
 table { width: 100%; border-collapse: collapse; font-size: 15px; }
 th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
 th { color: var(--muted); font-weight: 600; font-size: 13px; text-transform: uppercase; }
@@ -183,7 +189,7 @@ textarea.cell-input { min-height: 32px; }
 .cred-mask-wrap .cred-input { flex: 1; min-width: 70px; }
 .btn-copy { border: none; background: transparent; cursor: pointer; font-size: 15px; padding: 2px 4px; border-radius: 4px; }
 .btn-copy:hover { background: var(--panel-2); }
-a.link { color: var(--accent); text-decoration: none; }
+a.link { color: var(--accent-text); text-decoration: none; }
 a.link:hover { text-decoration: underline; }
 .portal-bar-wrap {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
@@ -208,7 +214,7 @@ a.toggle-btn.portal-btn { text-decoration: none; padding: 5px 12px; font-size: 1
 }
 .picker-results .picker-row { padding: 7px 10px; font-size: 15px; cursor: pointer; }
 .picker-results .picker-row:hover { background: var(--panel-2); }
-.checklist-toggle { cursor: pointer; font-size: 13px; font-weight: 700; color: var(--accent); background: none; border: none; padding: 0; }
+.checklist-toggle { cursor: pointer; font-size: 13px; font-weight: 700; color: var(--accent-text); background: none; border: none; padding: 0; }
 .checklist-box { margin-top: 6px; min-width: 180px; }
 .checklist-box label { display: flex; align-items: center; gap: 6px; font-size: 13px; margin-bottom: 3px; cursor: pointer; }
 .checklist-box label input { margin: 0; }
@@ -237,7 +243,7 @@ a.toggle-btn.portal-btn { text-decoration: none; padding: 5px 12px; font-size: 1
 
 /* Client name links (Today/staff cards -> full profile) */
 a.client-link { color: inherit; text-decoration: underline; text-decoration-style: dotted; }
-a.client-link:hover { color: var(--accent); }
+a.client-link:hover { color: var(--accent-text); }
 .client-ids { font-size: 12px; color: var(--muted); margin-top: 2px; }
 
 /* Client Profile page */
@@ -253,12 +259,13 @@ a.client-link:hover { color: var(--accent); }
    message spans every tab used to hand-roll (client-save-msg, profile-save-msg, etc.). */
 .toast {
   position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(8px);
-  background: var(--text); color: var(--bg); padding: 10px 20px; border-radius: 8px;
-  font-size: 14px; font-weight: 600; box-shadow: 0 6px 20px rgba(0,0,0,0.25);
+  background: var(--panel-2); color: var(--text); border: 1px solid var(--border);
+  padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 600;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.25);
   z-index: 200; opacity: 0; pointer-events: none; transition: opacity 0.2s ease, transform 0.2s ease;
 }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
-.toast.error { background: var(--urgent); color: white; }
+.toast.error { background: var(--urgent); color: white; border-color: var(--urgent); }
 
 /* Print - only meaningful on the Full Profile page (the only tab someone would hand a
    client's whole file to paper from). Chrome/nav/buttons drop out, editable-looking
