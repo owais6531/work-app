@@ -1,4 +1,8 @@
 :root {
+  /* Tells the browser this page supports both schemes, so native form controls
+     (input/select/textarea backgrounds, scrollbars, date-picker) auto-adapt instead of
+     staying stuck on light UA styling inside an otherwise dark page. */
+  color-scheme: light dark;
   --bg: #f4f6f8;
   --panel: #ffffff;
   --panel-2: #f3f5f7;
@@ -24,12 +28,12 @@
     --muted: #93a3ac;
     --border: #2b353d;
     --accent: #6ea8dc;
-    --urgent: #e0554a;
-    --urgent2: #e2933a;
-    --blocked: #8a97a1;
-    --normal: #4f8fe0;
-    --low: #6b7684;
-    --done: #3fb377;
+    --urgent: #c0392b;
+    --urgent2: #b3651d;
+    --blocked: #5c6670;
+    --normal: #3060c0;
+    --low: #545f6c;
+    --done: #1e8449;
   }
 }
 * { box-sizing: border-box; }
@@ -114,6 +118,12 @@ main { padding: 20px 24px; max-width: 1200px; margin: 0 auto; }
 .task-card .notes { font-size: 15px; margin-top: 6px; }
 textarea.card-notes-edit { width: 100%; min-height: 44px; margin-top: 6px; font-size: 14px; }
 .toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; align-items: center; }
+/* :where() keeps this at zero specificity so every existing "transparent"/pill-style
+   input class (.cell-input, .cred-input, .pill-select, ...) still wins over it regardless
+   of source order - this just sets the base look, not a competing override. */
+:where(input[type=text], input[type=date], input[type=number], input[type=password], select, textarea) {
+  background: var(--panel); color: var(--text);
+}
 input[type=text], select {
   padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 15px;
 }

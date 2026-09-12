@@ -79,3 +79,36 @@ redesign — it's giving urgent things a louder voice than routine ones.
       CSS review instead.)
 
 All 4 phases from the original audit are now done. Revisit this file if new friction shows up.
+
+## Correction — dark mode contrast bug (2026-09-12, post-Phase 3)
+
+Owais reported: "color combination theek nahi, kaafi cheezein visible theek se nahi hain" in
+dark mode. Root cause, confirmed live in the browser (Tasks tab): the header search box, all
+filter dropdowns (Status/Priority/Owner/Project/Plan Day), and several plain `<input>`/
+`<select>`/`<textarea>` elements had **no explicit background/text colour** — they were
+relying on the browser's default light-mode form-control styling, which does not follow the
+page's own dark CSS unless the page opts in. Result: bright white boxes with black text
+floating inside an otherwise dark page.
+
+**Fix (researched — see sources below):**
+- Added `color-scheme: light dark` to `:root` **and** `<meta name="color-scheme" content="light dark">`
+  in `<head>` — this is the actual browser mechanism that lets native form controls,
+  scrollbars, and the date-picker follow the page's dark/light state automatically.
+- Added an explicit `:where(input, select, textarea) { background: var(--panel); color: var(--text); }`
+  base rule so the app's own palette is used, not just the browser's generic dark grey.
+  `:where()` was used deliberately so it stays at **zero specificity** — every existing
+  "transparent"/pill-style input class (`.cell-input`, `.cred-input`, `.pill-select`) still
+  wins over it regardless of source order, so none of the existing table-editing styling broke.
+- Deepened the dark-mode badge colours (`--urgent`, `--urgent2`, `--blocked`, `--normal`,
+  `--low`, `--done`) — the earlier version brightened them for "pop" against the dark
+  background, which is backwards: white badge text needs a **darker**, not lighter, fill to
+  stay legible per WCAG's 4.5:1 text-contrast guidance.
+
+Verified live: Tasks tab search/filter/date fields, the New Client modal, and Today-tab
+textareas all render dark-on-dark correctly now, no more stray white boxes.
+
+Sources consulted:
+- [web.dev — Improve dark mode default with `color-scheme` and a meta tag](https://web.dev/articles/color-scheme)
+- [MDN — `color-scheme` CSS property](https://developer.mozilla.org/en-US/docs/Web/CSS/color-scheme)
+- [DubBot — Dark Mode: Best Practices for Accessibility](https://dubbot.com/dubblog/2023/dark-mode-a11y.html)
+- [ColorContrast.org — Dark Mode Contrast: WCAG-Compliant Dark UI Guide](https://www.colorcontrast.org/blog/dark-mode-contrast-accessibility-guide/)
