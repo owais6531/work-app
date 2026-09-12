@@ -343,7 +343,16 @@ async function loadTasks() {
   tbody.innerHTML = rows.map(t => `
     <tr data-id="${t.id}" data-client-id="${t.client_id || ""}" data-task-type="${esc(t.task_type || "")}">
       <td><span class="${projectClass(t.project)}">${esc(t.project || "Tax Practice")}</span></td>
-      <td class="small">${esc(t.client_display_name || t.client_name_raw || "-")}</td>
+      <td class="small task-client-cell">
+        ${t.client_id
+          ? `<a href="#" class="client-link" data-client-id="${t.client_id}">${esc(t.client_display_name || t.client_name_raw || "-")}</a>`
+          : `<div>${esc(t.client_display_name || t.client_name_raw || "-")}</div>
+             <button type="button" class="btn secondary btn-link-client" style="margin-top:4px; font-size:12px; padding:3px 8px;">🔗 Client link karein</button>
+             <div style="position:relative;">
+               <input type="text" class="cell-input task-link-search" placeholder="Client search karein..." style="display:none; width:150px;">
+               <div class="picker-results task-link-results" style="display:none;"></div>
+             </div>`}
+      </td>
       <td><input type="text" class="task-field cell-input" data-field="task_type" value="${esc(t.task_type || "")}"></td>
       <td>${checklistCellHtml(t)}</td>
       <td>
@@ -379,6 +388,36 @@ async function loadTasks() {
       field.addEventListener("change", () => updateTask(id, { [field.dataset.field]: field.value }));
     });
     if (task) wireChecklist(tr, id, task);
+    const linkBtn = tr.querySelector(".btn-link-client");
+    if (linkBtn) {
+      const searchInput = tr.querySelector(".task-link-search");
+      const resultsEl = tr.querySelector(".task-link-results");
+      linkBtn.addEventListener("click", () => {
+        searchInput.style.display = "block";
+        searchInput.focus();
+      });
+      let linkDebounce = null;
+      searchInput.addEventListener("input", (e) => {
+        clearTimeout(linkDebounce);
+        const q = e.target.value.trim();
+        if (!q) { resultsEl.style.display = "none"; return; }
+        linkDebounce = setTimeout(async () => {
+          const r = await fetch(API + "/api/clients?q=" + encodeURIComponent(q));
+          const clients = await r.json();
+          if (!clients.length) { resultsEl.style.display = "none"; return; }
+          resultsEl.innerHTML = clients.slice(0, 15).map(c =>
+            `<div class="picker-row" data-id="${c.id}">${esc(c.name)} <span class="small">${esc(c.ntn || "")}</span></div>`
+          ).join("");
+          resultsEl.style.display = "block";
+          resultsEl.querySelectorAll(".picker-row").forEach(row => {
+            row.addEventListener("click", async () => {
+              await updateTask(id, { client_id: Number(row.dataset.id) });
+              loadTasks();
+            });
+          });
+        }, 250);
+      });
+    }
     const folderBtn = tr.querySelector(".btn-folder");
     if (folderBtn) folderBtn.addEventListener("click", () =>
       openClientFolder(tr.dataset.clientId, tr.dataset.taskType, folderBtn));
@@ -474,6 +513,22 @@ async function loadClients() {
   });
 }
 document.getElementById("client-search").addEventListener("input", loadClients);
+
+document.getElementById("btn-add-client").addEventListener("click", async () => {
+  const name = (prompt("Naye client ka naam:") || "").trim();
+  if (!name) return;
+  const ntn = (prompt("NTN (optional, khali chhod sakte hain):") || "").trim();
+  const cnic = (prompt("CNIC (optional):") || "").trim();
+  const r = await fetch(API + "/api/clients", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, ntn, cnic }),
+  });
+  const data = await r.json();
+  if (!r.ok) { alert("Client add nahi ho saka: " + (data.error || "unknown error")); return; }
+  document.getElementById("client-search").value = name;
+  await loadClients();
+  showClientDetail(data.id);
+});
 
 async function showClientDetail(id) {
   const r = await fetch(API + `/api/clients/${id}`);

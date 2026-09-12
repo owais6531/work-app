@@ -243,9 +243,23 @@ def api_task_detail(task_id):
     return jsonify({"ok": True})
 
 
-@app.route("/api/clients")
+@app.route("/api/clients", methods=["GET", "POST"])
 def api_clients():
     db = get_db()
+    if request.method == "POST":
+        data = request.json or {}
+        name = (data.get("name") or "").strip()
+        if not name:
+            return jsonify({"error": "name zaroori hai"}), 400
+        cur = db.execute(
+            "INSERT INTO clients (name, ntn, cnic, contact_info, registration_status, last_enriched) "
+            "VALUES (?,?,?,?,?,?)",
+            (name, data.get("ntn") or None, data.get("cnic") or None,
+             data.get("contact_info") or None, data.get("registration_status") or None, today_str()),
+        )
+        db.commit()
+        return jsonify({"id": cur.lastrowid}), 201
+
     q = request.args.get("q", "").strip().lower()
     sql = "SELECT id, name, ntn, cnic, group_family, contact_info, registration_status, last_enriched, status_notes FROM clients WHERE 1=1"
     params = []
