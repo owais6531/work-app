@@ -54,14 +54,44 @@ migration cost (already wired into the real Drive folder structure); ships chang
       navigation. Tested live.
 - [x] **Unmatched-client worklist** — done 2026-09-12. "Unmatched clients only" checkbox in
       Tasks tab filters to just the client_id-null rows next to the existing 🔗 link picker.
-      Of 60 unmatched open tasks, most are correctly-unmatched by design (QBizTax internal,
-      Personal, "ALL CLIENTS" aggregate rows, Office-internal) — roughly **20 are genuine tax
-      clients** still needing a human match: Aisha Mansoor, SS Textile/Zain/Medicads, Naseer
-      Akhtar co AGH, BRR (company), Green Plus, Yahya Qureshi/MECO, Ahmad Ali/Shahadat
-      Tyre/Shazia Abid, Bios, CHS Marium Asad, BRR Packages, Maheen Owais, Zin Enterprises,
-      Subhan, Adil/Bright Spark, Just Wear, Farrukh Mateen/MECO, Mujahid (x2), Razi Darmalton
-      LLP, Zafar sb, S.S Textile Industries+Zain International. Matching itself still needs
-      Owais/Umair confirmation per client (not auto-guessed, CLAUDE.md section 1).
+      **Cleanup itself also done 2026-09-12** — went through all ~20 genuine unmatched tax
+      clients with Owais, confirmed one by one:
+      - Linked to existing DB records: Mujahid tasks → NOT MUJAHID HUSSAIN (that was a wrong
+        candidate — real Mujahid is a personal contact, see below), BRR (company) + BRR
+        Packages → client 111 "BRR PACKAGES", CHS Marium Asad → client 116 "Childern Home
+        Store", Razi Darmalton LLP (3 tasks) → client 427 (renamed from misspelled "Razi
+        Darmilton"), Ahmad Ali/Shahadat Tyre → client 35 "Ahmad Ali co Shahadat tyres",
+        Subhan → client 264 "M SUBHAN MOBILE".
+      - New client records created (no DB match existed): Green Plus, Bios, Yahya Qureshi /
+        MECO, Farrukh Mateen and Company (MECO) (confirmed a **different** entity from Yahya
+        Qureshi despite both saying "MECO"), Just Wear (Rana Ashfaq Ahmed), Mrs. Aisha
+        Mansoor, Naseer Akhtar co AGH, Zin Enterprises (Karachi Office), Maheen Owais (Esteem
+        Advertising), SS Textile Industries (SM Shahid), Adil (Muhammad Adil Rais - Bright
+        Spark Bulb), Mujahid (Owais's personal contact — his PRA/PSEB tasks now tracked as a
+        client since the work runs through the practice), Zafar sb (same - personal contact,
+        tracked as a client for the payment-follow-up task).
+      - **Left unlinked on purpose**: task 98 (IRIS Sales Tax batch download — spans many
+        clients), task 32 (Maha/Amna scheduling — staff, not a client), task 109 (Bilal
+        bhae — dev work, not a client), task 110 (Owais's own side-business idea), task 116
+        Phoenix Enterprise — already flagged in its own notes as a duplicate-NTN case (ids
+        411/710) pending verification before filing, not a new issue.
+      - **Zain International duplicate** (ids 585 NTN 6658977 / 689 NTN 6658977-3) — Owais
+        confirmed same entity, NTN differs only by a check-digit suffix. Left both DB rows
+        as-is (no delete without explicit ask); tasks 27 and 80 (which named Zain
+        International alongside SS Textile) were linked to the new SS Textile Industries
+        record as the primary party, since one task can only hold one `client_id` — a real
+        instance of the "flat task model can't hold multi-party matters" gap.
+      - **⚠️ Data-quality flag**: while confirming "Razi Darmalton LLP", Owais's reply
+        included what look like **plaintext portal credentials** ("Razi!9740", "Pakistan!123"
+        style strings) and a code "A499740" of unclear purpose. None of this was stored
+        anywhere (not in the NTN field, not elsewhere) — flagging per the standing house rule
+        on credentials pasted into chat (CLAUDE.md section 7). If "A499740" is meant to be
+        recorded (SECP registration number?), it needs to go in the correct field
+        deliberately, not guessed into NTN.
+      Open unmatched count: 60 → 40 (all remaining are correctly non-client rows).
+
+**Decision (2026-09-12):** Client Portal and Time Tracking — Owais chose **"baad mein, abhi
+nahi"** (later, not now) for both. Noted here as deliberate deferrals, not forgotten items.
 
 Client portal and time tracking are the two gaps that matter most to the market, but also the
 two biggest builds — worth a deliberate yes/no rather than starting by default.
