@@ -109,7 +109,7 @@ def api_today():
     today = datetime.date.today()
     lookahead = today + datetime.timedelta(days=8)
     rows = rows_as_dicts(db.execute(
-        "SELECT t.*, c.name AS client_display_name, c.ntn, c.registration_status FROM tasks t "
+        "SELECT t.*, c.name AS client_display_name, c.ntn, c.cnic, c.registration_status FROM tasks t "
         "LEFT JOIN clients c ON c.id = t.client_id "
         "WHERE t.status != 'Done' AND t.status != 'Closed'"
     ))
@@ -247,11 +247,11 @@ def api_task_detail(task_id):
 def api_clients():
     db = get_db()
     q = request.args.get("q", "").strip().lower()
-    sql = "SELECT id, name, ntn, group_family, contact_info, registration_status, last_enriched, status_notes FROM clients WHERE 1=1"
+    sql = "SELECT id, name, ntn, cnic, group_family, contact_info, registration_status, last_enriched, status_notes FROM clients WHERE 1=1"
     params = []
     if q:
-        sql += " AND (lower(name) LIKE ? OR lower(ntn) LIKE ?)"
-        params += [f"%{q}%", f"%{q}%"]
+        sql += " AND (lower(name) LIKE ? OR lower(ntn) LIKE ? OR lower(cnic) LIKE ?)"
+        params += [f"%{q}%", f"%{q}%", f"%{q}%"]
     sql += " ORDER BY name LIMIT 500"
     rows = rows_as_dicts(db.execute(sql, params))
     return jsonify(rows)
@@ -262,7 +262,7 @@ def api_client_detail(client_id):
     db = get_db()
     if request.method == "PUT":
         data = request.json or {}
-        fields = ["name", "ntn", "contact_info", "registration_status", "status_notes", "enrichment_notes"]
+        fields = ["name", "ntn", "cnic", "contact_info", "registration_status", "status_notes", "enrichment_notes"]
         updates, params = [], []
         for f in fields:
             if f in data:
@@ -280,13 +280,27 @@ def api_client_detail(client_id):
     if not client:
         return jsonify({"error": "not found"}), 404
     links = rows_as_dicts(db.execute("SELECT category, link_text, link_target FROM client_links WHERE client_id = ?", (client_id,)))
-    tasks = rows_as_dicts(db.execute("SELECT * FROM tasks WHERE client_id = ?", (client_id,)))
+    tasks = rows_as_dicts(db.execute(
+        "SELECT * FROM tasks WHERE client_id = ? ORDER BY CASE status "
+        "WHEN 'Pending' THEN 0 WHEN 'In Progress' THEN 1 WHEN 'Blocked' THEN 2 "
+        "WHEN 'Done' THEN 3 WHEN 'Closed' THEN 4 ELSE 5 END, due_date",
+        (client_id,),
+    ))
     drafts = rows_as_dicts(db.execute("SELECT * FROM drafts WHERE client_id = ? ORDER BY updated_at DESC", (client_id,)))
+    sales_tax = rows_as_dicts(db.execute("SELECT * FROM sales_tax_returns WHERE client_id = ? ORDER BY authority", (client_id,)))
+
+    task_counts = {}
+    for t in tasks:
+        s = t.get("status") or "Pending"
+        task_counts[s] = task_counts.get(s, 0) + 1
+
     return jsonify({
         "client": client,
         "links": links,
         "tasks": tasks,
+        "task_counts": task_counts,
         "drafts": drafts,
+        "sales_tax": sales_tax,
     })
 
 

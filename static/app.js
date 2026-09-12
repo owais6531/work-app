@@ -153,18 +153,24 @@ function renderStaffGroups(list) {
 }
 function taskCardHtml(t) {
   const client = t.client_display_name || t.client_name_raw || "-";
+  const clientNameHtml = t.client_id
+    ? `<a href="#" class="client-link" data-client-id="${t.client_id}">${esc(client)}</a>`
+    : esc(client);
+  const idBits = [t.ntn ? "NTN: " + t.ntn : "", t.cnic ? "CNIC: " + t.cnic : ""].filter(Boolean).join(" · ");
+  const idLine = idBits ? `<div class="client-ids">${esc(idBits)}</div>` : "";
   const portal = guessPortalForTask(t);
   const portalLink = portal
     ? ` <a class="link portal-task-link" href="${esc(portal.url)}" target="_blank" rel="noopener">🔗 ${esc(portal.name)} kholein</a>`
     : "";
   return `<div class="${cardClass(t.priority)}" data-id="${t.id}">
     <div class="row1">
-      <span class="client">${esc(client)}</span>
+      <span class="client">${clientNameHtml}</span>
       <span>
         <span class="${projectClass(t.project)}">${esc(t.project || "Tax Practice")}</span>
         <span class="${badgeClass(t.priority)}">${esc(t.priority || "")}</span>
       </span>
     </div>
+    ${idLine}
     <div class="meta">${esc(t.task_type || "")} ${t.due_date ? "· due " + esc(t.due_date) : ""} ${t.blocked_on ? "· blocked: " + esc(t.blocked_on) : ""}${portalLink}</div>
     <textarea class="cell-input notes card-notes-edit" placeholder="Note / instruction likhein...">${esc(t.notes || "")}</textarea>
     <div style="margin-top:6px;">
@@ -479,6 +485,12 @@ async function showClientDetail(id) {
   el.innerHTML = `
     <h3>${esc(c.name)} <span class="small">${esc(c.ntn || "")}</span></h3>
     <div class="toolbar">
+      <button type="button" class="btn secondary btn-full-profile">👤 Full Profile kholein</button>
+    </div>
+    <div class="toolbar">
+      <label class="small">CNIC:
+        <input type="text" class="client-field" data-field="cnic" value="${esc(c.cnic || "")}" placeholder="XXXXX-XXXXXXX-X" style="width:160px;">
+      </label>
       <label class="small">Contact:
         <input type="text" class="client-field" data-field="contact_info" value="${esc(c.contact_info || "")}" placeholder="email / phone" style="width:220px;">
       </label>
@@ -507,6 +519,8 @@ async function showClientDetail(id) {
       flashCopied(btn, "✅ Copied");
     });
   });
+  const fullProfileBtn = el.querySelector(".btn-full-profile");
+  if (fullProfileBtn) fullProfileBtn.addEventListener("click", () => openClientProfile(id, "clients"));
   el.querySelectorAll(".client-field").forEach(field => {
     field.addEventListener("change", async () => {
       const msg = document.getElementById("client-save-msg");
@@ -526,6 +540,155 @@ async function showClientDetail(id) {
   credSearch.value = (c.name || "").trim().split(/\s+/)[0] || "";
   loadCredentials();
   document.getElementById("creds-body").scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+// ---- Client Profile (full page) ----
+let profileReturnTab = "today";
+
+document.addEventListener("click", (e) => {
+  const a = e.target.closest(".client-link");
+  if (!a) return;
+  e.preventDefault();
+  const activeBtn = document.querySelector("nav button.active");
+  openClientProfile(a.dataset.clientId, activeBtn ? activeBtn.dataset.tab : "today");
+});
+
+function showTab(tab) {
+  document.querySelectorAll("nav button").forEach(b => b.classList.toggle("active", b.dataset.tab === tab));
+  document.querySelectorAll("main > section").forEach(s => s.style.display = "none");
+  document.getElementById("tab-" + tab).style.display = "block";
+}
+
+document.getElementById("btn-profile-back").addEventListener("click", () => {
+  showTab(profileReturnTab);
+  if (profileReturnTab === "today") loadToday();
+  if (profileReturnTab === "followups") loadFollowups();
+  if (profileReturnTab === "tasks") loadTasks();
+  if (profileReturnTab === "clients") { loadClients(); loadCredentials(); }
+});
+
+function profileTaskGroupHtml(title, tasks) {
+  if (!tasks.length) return "";
+  return `<div class="profile-task-group">
+    <div class="staff-name">${esc(title)} (${tasks.length})</div>
+    ${tasks.map(taskCardHtml).join("")}
+  </div>`;
+}
+
+function profileFoldersHtml(links) {
+  const usable = links.filter(l => l.link_text || l.link_target);
+  if (!usable.length) return '<div class="empty">Koi folder link nahi mila.</div>';
+  const groups = {};
+  usable.forEach(l => {
+    const cat = l.category || "Other";
+    if (!groups[cat]) groups[cat] = [];
+    groups[cat].push(l);
+  });
+  return Object.keys(groups).map(cat => `
+    <div class="profile-folder-group">
+      <div class="staff-name">${esc(cat)}</div>
+      <ul>${groups[cat].map(l => `<li>${l.link_target ? `
+        <button type="button" class="btn secondary btn-open-folder" data-path="${esc(l.link_target)}">📂 ${esc(l.link_text || l.category)}</button>
+        <button type="button" class="btn secondary btn-copy-folder" data-path="${esc(l.link_target)}" title="Path copy karein">📋</button>
+      ` : esc(l.link_text)}</li>`).join("")}</ul>
+    </div>`).join("");
+}
+
+function profileSalesTaxHtml(rows) {
+  if (!rows || !rows.length) return "";
+  return `<b>Sales Tax Returns</b>
+    <table><thead><tr><th>Authority</th><th>Reg. No.</th><th>Status</th><th>Submitted Upto</th><th>Comments</th></tr></thead>
+    <tbody>${rows.map(r => `<tr>
+      <td>${esc(r.authority || "")}</td><td class="small">${esc(r.registration_number || "")}</td>
+      <td><span class="${badgeClass(r.status)}">${esc(r.status || "")}</span></td>
+      <td class="small">${esc(r.submitted_upto || "")}</td><td class="small">${esc(r.comments || "")}</td>
+    </tr>`).join("")}</tbody></table>`;
+}
+
+async function openClientProfile(clientId, returnTab) {
+  if (!clientId) return;
+  profileReturnTab = returnTab || profileReturnTab || "today";
+  showTab("profile");
+  const content = document.getElementById("profile-content");
+  content.innerHTML = '<div class="empty">Load ho raha hai...</div>';
+  const r = await fetch(API + `/api/clients/${clientId}`);
+  if (!r.ok) {
+    content.innerHTML = '<div class="empty">Client nahi mila.</div>';
+    return;
+  }
+  const data = await r.json();
+  const c = data.client;
+  const counts = data.task_counts || {};
+  const countChips = ["Pending", "In Progress", "Blocked", "Done", "Closed"]
+    .filter(s => counts[s])
+    .map(s => `<span class="${badgeClass(s === "Done" || s === "Closed" ? "NORMAL" : s === "Blocked" ? "BLOCKED" : "URGENT")}">${esc(s)}: ${counts[s]}</span>`)
+    .join(" ");
+
+  const openTasks = data.tasks.filter(t => t.status !== "Done" && t.status !== "Closed");
+  const closedTasks = data.tasks.filter(t => t.status === "Done" || t.status === "Closed");
+
+  content.innerHTML = `
+    <div class="profile-header">
+      <h2>${esc(c.name)} <span class="small">#${c.id}</span></h2>
+      <div class="toolbar">
+        <label class="small">NTN:
+          <input type="text" class="client-field" data-field="ntn" value="${esc(c.ntn || "")}" style="width:150px;">
+        </label>
+        <label class="small">CNIC:
+          <input type="text" class="client-field" data-field="cnic" value="${esc(c.cnic || "")}" placeholder="XXXXX-XXXXXXX-X" style="width:160px;">
+        </label>
+        <label class="small">Contact:
+          <input type="text" class="client-field" data-field="contact_info" value="${esc(c.contact_info || "")}" placeholder="email / phone" style="width:220px;">
+        </label>
+      </div>
+      <div class="toolbar">
+        <label class="small">Registration status:
+          <input type="text" class="client-field" data-field="registration_status" value="${esc(c.registration_status || "")}" style="width:320px;">
+        </label>
+        <span class="small">Last enriched: ${esc(c.last_enriched || "—")}</span>
+        ${c.group_family ? `<span class="small">Group: ${esc(c.group_family)}</span>` : ""}
+      </div>
+      <label class="small">Notes:</label>
+      <textarea class="client-field followup-msg" data-field="status_notes" style="min-height:50px;">${esc(c.status_notes || "")}</textarea>
+      <span class="small" id="profile-save-msg"></span>
+    </div>
+
+    <div class="profile-stats">${countChips || '<span class="small">Koi task nahi</span>'}</div>
+
+    <b>📁 Folders / Directories</b>
+    ${profileFoldersHtml(data.links)}
+
+    ${profileSalesTaxHtml(data.sales_tax)}
+
+    ${data.drafts && data.drafts.length ? `<b>📝 Drafts</b><ul>${data.drafts.map(d => `<li class="small">${esc(d.draft_type)}: ${esc(d.title || "")} — ${esc(d.status)}</li>`).join("")}</ul>` : ""}
+
+    <b>✅ Tasks</b>
+    ${openTasks.length ? profileTaskGroupHtml("Open", openTasks) : '<div class="empty">Koi open task nahi</div>'}
+    ${closedTasks.length ? profileTaskGroupHtml("Done / Closed", closedTasks) : ""}
+  `;
+
+  content.querySelectorAll(".btn-open-folder").forEach(btn => {
+    btn.addEventListener("click", () => openFolderPath(btn.dataset.path, btn));
+  });
+  content.querySelectorAll(".btn-copy-folder").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      await copyToClipboard(btn.dataset.path);
+      flashCopied(btn, "✅ Copied");
+    });
+  });
+  content.querySelectorAll(".client-field").forEach(field => {
+    const evt = field.tagName === "TEXTAREA" ? "blur" : "change";
+    field.addEventListener(evt, async () => {
+      const msg = document.getElementById("profile-save-msg");
+      await fetch(API + `/api/clients/${clientId}`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [field.dataset.field]: field.value }),
+      });
+      msg.textContent = "✅ Saved";
+      setTimeout(() => { msg.textContent = ""; }, 1200);
+    });
+  });
+  wireCardStatusSelects(content, () => openClientProfile(clientId, profileReturnTab));
 }
 
 // ---- Backups ----
