@@ -49,10 +49,15 @@ redesign — it's giving urgent things a louder voice than routine ones.
 - [x] One shared debounce helper for all search boxes.
 - [x] `flex-wrap: wrap` on the nav bar.
 
-### Phase 2 — next couple of sessions (foundations)
-- [ ] Real type scale in `style.css` (display face for headers, body face for everything else).
-- [ ] Tasks/Clients tables collapse to stacked label/value cards under ~900px.
-- [ ] Group the 12 nav buttons into visual clusters (Daily work · Clients & money · Admin).
+### Phase 2 — next couple of sessions (foundations) — ✅ done 2026-09-12
+- [x] Real type scale in `style.css` (consistent h2/h3 size+weight everywhere, replacing ad hoc
+      inline size bumps — kept the system font, no external webfont dependency for a tool that
+      needs to work reliably offline).
+- [x] Tasks/Clients/Passwords/Sales-Tax tables collapse to stacked label/value cards under 900px
+      (`.responsive-table` + `data-label` on every cell).
+- [x] Grouped the 12 nav buttons into 3 visual clusters — Daily work (Today/Follow-ups/Approvals/
+      Tasks/Notepad) · Clients & money (Clients/Sales Tax/NTN Lookup/Recurring/Drafts/Tax
+      Calculator) · Admin (Backups) — with a thin divider, no change to what each tab does.
 
 ### Phase 3 — once the above settles (depth)
 - [ ] `prefers-color-scheme: dark` block in the existing token set.

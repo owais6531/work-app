@@ -381,8 +381,8 @@ async function loadTasks() {
   const priorities = ["URGENT-OVERDUE","URGENT","URGENT-VERIFY DATE","BLOCKED","NORMAL","LOW"];
   tbody.innerHTML = rows.map(t => `
     <tr data-id="${t.id}" data-client-id="${t.client_id || ""}" data-task-type="${esc(t.task_type || "")}">
-      <td><span class="${projectClass(t.project)}">${esc(t.project || "Tax Practice")}</span></td>
-      <td class="small task-client-cell">
+      <td data-label="Project"><span class="${projectClass(t.project)}">${esc(t.project || "Tax Practice")}</span></td>
+      <td class="small task-client-cell" data-label="Client">
         ${t.client_id
           ? `<a href="#" class="client-link" data-client-id="${t.client_id}">${esc(t.client_display_name || t.client_name_raw || "-")}</a>`
           : `<div>${esc(t.client_display_name || t.client_name_raw || "-")}</div>
@@ -392,27 +392,27 @@ async function loadTasks() {
                <div class="picker-results task-link-results" style="display:none;"></div>
              </div>`}
       </td>
-      <td><input type="text" class="task-field cell-input" data-field="task_type" value="${esc(t.task_type || "")}"></td>
-      <td>${checklistCellHtml(t)}</td>
-      <td>
+      <td data-label="Task"><input type="text" class="task-field cell-input" data-field="task_type" value="${esc(t.task_type || "")}"></td>
+      <td data-label="Checklist">${checklistCellHtml(t)}</td>
+      <td data-label="Priority">
         <select class="pill-select task-field" data-field="priority">
           ${priorities.map(p => `<option ${p===t.priority?"selected":""}>${p}</option>`).join("")}
         </select>
       </td>
-      <td>
+      <td data-label="Status">
         <select class="pill-select task-field" data-field="status">
           ${["Pending","In Progress","Done","Closed"].map(s => `<option ${s===t.status?"selected":""}>${s}</option>`).join("")}
         </select>
       </td>
-      <td>
+      <td data-label="Owner">
         <select class="pill-select task-field" data-field="owner">
           ${["Umair","Iqbal","Mannan","Maha","Amna","Claude"].map(o => `<option value="${o}" ${o===t.owner?"selected":""}>${ownerLabel(o)}</option>`).join("")}
         </select>
       </td>
-      <td><input type="date" class="task-field cell-input" data-field="due_date" value="${esc(t.due_date || "")}" style="width:130px;"></td>
-      <td><input type="number" class="task-field cell-input" data-field="plan_day" min="1" max="5" value="${t.plan_day || ""}" style="width:50px;"></td>
-      <td><input type="text" class="task-field cell-input" data-field="blocked_on" value="${esc(t.blocked_on || "")}" placeholder="blocked on..." style="width:130px;"></td>
-      <td><textarea class="task-field cell-input" data-field="notes" style="width:200px; min-height:32px;">${esc(t.notes || "")}</textarea></td>
+      <td data-label="Due"><input type="date" class="task-field cell-input" data-field="due_date" value="${esc(t.due_date || "")}" style="width:130px;"></td>
+      <td data-label="Plan Day"><input type="number" class="task-field cell-input" data-field="plan_day" min="1" max="5" value="${t.plan_day || ""}" style="width:50px;"></td>
+      <td data-label="Blocked On"><input type="text" class="task-field cell-input" data-field="blocked_on" value="${esc(t.blocked_on || "")}" placeholder="blocked on..." style="width:130px;"></td>
+      <td data-label="Notes"><textarea class="task-field cell-input" data-field="notes" style="width:200px; min-height:32px;">${esc(t.notes || "")}</textarea></td>
       <td>
         ${t.client_id ? '<button class="btn secondary btn-folder" title="Folder open karein">📁</button>' : ""}
         ${t.client_id ? '<button class="btn secondary btn-draft" title="Letter/script draft banayein">📝</button>' : ""}
@@ -541,11 +541,11 @@ async function loadClients() {
   }
   tbody.innerHTML = rows.map(c => `
     <tr data-id="${c.id}" style="cursor:pointer">
-      <td>${esc(c.name)}</td>
-      <td class="small">${esc(c.ntn || "")}</td>
-      <td class="small">${esc(c.contact_info || "—")}</td>
-      <td class="small">${esc(c.registration_status || "—")}</td>
-      <td class="small">${esc(c.last_enriched || "—")}</td>
+      <td data-label="Name">${esc(c.name)}</td>
+      <td class="small" data-label="NTN">${esc(c.ntn || "")}</td>
+      <td class="small" data-label="Contact">${esc(c.contact_info || "—")}</td>
+      <td class="small" data-label="Status">${esc(c.registration_status || "—")}</td>
+      <td class="small" data-label="Last Enriched">${esc(c.last_enriched || "—")}</td>
     </tr>`).join("");
   tbody.querySelectorAll("tr").forEach(tr => {
     tr.addEventListener("click", () => showClientDetail(tr.dataset.id));
@@ -882,24 +882,24 @@ async function loadSalesTax() {
   }
   tbody.innerHTML = rows.map(s => `
     <tr class="st-readonly-row" data-id="${s.id}">
-      <td>${esc(s.client_name || "")}</td>
-      <td>${esc(s.registration_number || "")}</td>
-      <td>
+      <td data-label="Client">${esc(s.client_name || "")}</td>
+      <td data-label="Registration No.">${esc(s.registration_number || "")}</td>
+      <td data-label="Password">
         <span class="cred-mask-wrap">
           <span class="st-pw-cell">${esc(s.password || "")}</span>
           ${s.password ? '<button type="button" class="btn-copy" data-copy="password" title="Copy">📋</button>' : ""}
         </span>
       </td>
-      <td>
+      <td data-label="Pin">
         <span class="cred-mask-wrap">
           <span class="st-pin-cell">${esc(s.pin || "")}</span>
           ${s.pin ? '<button type="button" class="btn-copy" data-copy="pin" title="Copy">📋</button>' : ""}
         </span>
       </td>
-      <td>${esc(s.authority || "")}</td>
-      <td><span class="badge ${esc(s.status || "")}">${esc(s.status || "")}</span></td>
-      <td>${esc(s.submitted_upto || "")}</td>
-      <td>${esc(s.comments || "")}</td>
+      <td data-label="Authority">${esc(s.authority || "")}</td>
+      <td data-label="Status"><span class="badge ${esc(s.status || "")}">${esc(s.status || "")}</span></td>
+      <td data-label="Submitted Upto">${esc(s.submitted_upto || "")}</td>
+      <td data-label="Comments">${esc(s.comments || "")}</td>
       <td><button type="button" class="btn-row-edit" title="Edit">✏️</button></td>
     </tr>`).join("");
 
@@ -1024,22 +1024,22 @@ async function loadCredentials() {
   const maskType = credsRevealed ? "text" : "password";
   tbody.innerHTML = rows.map(c => `
     <tr data-id="${c.id}">
-      <td><input type="text" class="cred-input" data-field="client_name" value="${esc(c.client_name || "")}"></td>
-      <td><input type="text" class="cred-input" data-field="login_id" value="${esc(c.login_id || "")}"></td>
-      <td>
+      <td data-label="Client"><input type="text" class="cred-input" data-field="client_name" value="${esc(c.client_name || "")}"></td>
+      <td data-label="Login ID"><input type="text" class="cred-input" data-field="login_id" value="${esc(c.login_id || "")}"></td>
+      <td data-label="Password">
         <span class="cred-mask-wrap">
           <input type="${maskType}" class="cred-input mask-input" data-field="password" value="${esc(c.password || "")}">
           <button type="button" class="btn-copy" title="Copy">📋</button>
         </span>
       </td>
-      <td>
+      <td data-label="Pin">
         <span class="cred-mask-wrap">
           <input type="${maskType}" class="cred-input mask-input" data-field="pin" value="${esc(c.pin || "")}">
           <button type="button" class="btn-copy" title="Copy">📋</button>
         </span>
       </td>
-      <td class="small">${esc(c.source_sheet || "")}</td>
-      <td><input type="text" class="cred-input" data-field="remarks" value="${esc(c.remarks || "")}"></td>
+      <td class="small" data-label="Source">${esc(c.source_sheet || "")}</td>
+      <td data-label="Remarks"><input type="text" class="cred-input" data-field="remarks" value="${esc(c.remarks || "")}"></td>
       <td><button class="btn secondary btn-cred-del">✕</button></td>
     </tr>`).join("");
 

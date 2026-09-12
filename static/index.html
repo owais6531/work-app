@@ -14,13 +14,15 @@
     <button data-tab="followups">Follow-ups</button>
     <button data-tab="approvals">Approvals</button>
     <button data-tab="tasks">Tasks</button>
+    <button data-tab="notepad">Notepad</button>
+    <span class="nav-divider"></span>
     <button data-tab="clients">Clients &amp; Passwords</button>
     <button data-tab="salestax">Sales Tax Returns</button>
     <button data-tab="ntnlookup">NTN Lookup</button>
-    <button data-tab="notepad">Notepad</button>
     <button data-tab="recurring">Recurring</button>
     <button data-tab="drafts">Drafts</button>
     <button data-tab="taxcalc">Tax Calculator</button>
+    <span class="nav-divider"></span>
     <button data-tab="backups">Backups</button>
   </nav>
 </header>
@@ -144,7 +146,7 @@
         </select>
         <button class="btn secondary" id="btn-refresh-tasks">Refresh</button>
       </div>
-      <table>
+      <table class="responsive-table">
         <thead><tr>
           <th>Project</th><th>Client</th><th>Task</th><th>Checklist</th><th>Priority</th><th>Status</th><th>Owner</th>
           <th>Due</th><th>Plan Day</th><th>Blocked On</th><th>Notes</th><th></th>
@@ -160,7 +162,7 @@
         <input type="text" id="client-search" placeholder="Search by name or NTN...">
         <button class="btn" id="btn-add-client">+ New Client</button>
       </div>
-      <table>
+      <table class="responsive-table">
         <thead><tr><th>Name</th><th>NTN</th><th>Contact</th><th>Status</th><th>Last Enriched</th></tr></thead>
         <tbody id="clients-body"></tbody>
       </table>
@@ -175,7 +177,7 @@
         <input type="text" id="cred-search" placeholder="Client naam/ID se search karein...">
         <button class="btn secondary" id="btn-cred-showall">👁 Show All</button>
       </div>
-      <table>
+      <table class="responsive-table">
         <thead><tr><th>Client</th><th>Login ID</th><th>Password</th><th>Pin</th><th>Source</th><th>Remarks</th><th></th></tr></thead>
         <tbody id="creds-body"></tbody>
       </table>
@@ -203,7 +205,7 @@
         <button class="btn secondary" id="btn-st-refresh">Refresh</button>
         <button class="btn" id="btn-st-add">+ Add Client</button>
       </div>
-      <table>
+      <table class="responsive-table">
         <thead><tr>
           <th>Client</th><th>Registration No.</th><th>Password</th><th>Pin</th><th>Authority</th><th>Status</th>
           <th>Submitted Upto</th><th>Comments</th><th></th>

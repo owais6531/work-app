@@ -31,7 +31,12 @@ header {
   gap: 10px;
 }
 header h1 { font-size: 20px; margin: 0; }
-nav { display: flex; gap: 6px; flex-wrap: wrap; }
+/* Type scale - was carried entirely by ad hoc size bumps before; now h2/h3 have one
+   consistent size+weight wherever they're used (panel titles, modal titles, profile headers). */
+h2 { font-size: 20px; font-weight: 700; margin: 0 0 6px; color: var(--text); }
+h3 { font-size: 17px; font-weight: 700; margin: 0 0 10px; color: var(--text); }
+nav { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.nav-divider { width: 1px; align-self: stretch; background: rgba(255,255,255,0.25); margin: 2px 4px; }
 nav button {
   background: rgba(255,255,255,0.12);
   border: none;
@@ -101,6 +106,31 @@ table { width: 100%; border-collapse: collapse; font-size: 15px; }
 th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
 th { color: var(--muted); font-weight: 600; font-size: 13px; text-transform: uppercase; }
 tr:hover td { background: #f9fafb; }
+
+/* Under ~900px, dense tables (Tasks/Clients/Passwords/Sales Tax) collapse from rows into
+   stacked label/value cards instead of forcing horizontal scroll or squeezed columns. */
+@media (max-width: 900px) {
+  table.responsive-table, table.responsive-table thead, table.responsive-table tbody,
+  table.responsive-table th, table.responsive-table td, table.responsive-table tr {
+    display: block;
+  }
+  table.responsive-table thead tr { position: absolute; top: -9999px; left: -9999px; }
+  table.responsive-table tbody tr {
+    border: 1px solid var(--border); border-radius: 8px; margin-bottom: 10px;
+    padding: 4px 10px; background: var(--panel);
+  }
+  table.responsive-table tbody tr:hover td { background: transparent; }
+  table.responsive-table td {
+    border-bottom: 1px solid var(--border); padding: 8px 0 8px 42%; position: relative; min-height: 24px;
+  }
+  table.responsive-table td:last-child { border-bottom: none; }
+  table.responsive-table td:empty { display: none; }
+  table.responsive-table td::before {
+    content: attr(data-label);
+    position: absolute; left: 0; top: 8px; width: 38%;
+    font-weight: 700; font-size: 12px; color: var(--muted); text-transform: uppercase;
+  }
+}
 .pill-select { border: none; background: transparent; font-size: 13px; font-weight: 700; }
 .empty { color: var(--muted); font-size: 14px; padding: 12px 0; }
 .small { font-size: 13px; color: var(--muted); }
