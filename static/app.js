@@ -720,6 +720,21 @@ async function openClientProfile(clientId, returnTab) {
     <b>✅ Tasks</b>
     ${openTasks.length ? profileTaskGroupHtml("Open", openTasks) : '<div class="empty">Koi open task nahi</div>'}
     ${closedTasks.length ? profileTaskGroupHtml("Done / Closed", closedTasks) : ""}
+
+    <div class="profile-danger-zone">
+      <button type="button" class="btn secondary" id="btn-profile-show-delete" style="color:var(--urgent); border-color:var(--urgent);">🗑 Client Delete Karein</button>
+      <div id="profile-delete-zone" style="display:none; margin-top:10px;">
+        <div class="small" style="color:var(--urgent); margin-bottom:6px;">
+          Ye client record aur uske folder links permanently delete ho jayenge (tasks/drafts/sales-tax
+          history delete nahi hogi, sirf is client se unlink ho jayegi). Confirm karne ke liye neeche
+          <b>delete</b> type karein.
+        </div>
+        <div class="toolbar">
+          <input type="text" id="profile-delete-confirm-text" placeholder="delete" style="width:120px;">
+          <button class="btn secondary" id="btn-profile-delete-confirm" disabled style="color:var(--urgent); border-color:var(--urgent);">Delete Client</button>
+        </div>
+      </div>
+    </div>
   `;
 
   content.querySelectorAll(".btn-open-folder").forEach(btn => {
@@ -744,6 +759,23 @@ async function openClientProfile(clientId, returnTab) {
     });
   });
   wireCardStatusSelects(content, () => openClientProfile(clientId, profileReturnTab));
+
+  content.querySelector("#btn-profile-show-delete").addEventListener("click", () => {
+    document.getElementById("profile-delete-zone").style.display = "block";
+  });
+  content.querySelector("#profile-delete-confirm-text").addEventListener("input", (e) => {
+    document.getElementById("btn-profile-delete-confirm").disabled = e.target.value.trim().toLowerCase() !== "delete";
+  });
+  content.querySelector("#btn-profile-delete-confirm").addEventListener("click", async () => {
+    await fetch(API + `/api/clients/${clientId}`, { method: "DELETE" });
+    showTab(profileReturnTab);
+    if (profileReturnTab === "today") loadToday();
+    if (profileReturnTab === "clients") {
+      document.getElementById("client-detail").style.display = "none";
+      loadClients();
+      loadCredentials();
+    }
+  });
 }
 
 // ---- Backups ----

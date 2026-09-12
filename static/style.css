@@ -176,3 +176,4 @@ a.client-link:hover { color: var(--accent); }
 .profile-task-group, .profile-folder-group { margin-bottom: 12px; }
 .profile-folder-group ul { margin: 4px 0 0; padding-left: 0; list-style: none; }
 .profile-folder-group li { margin-bottom: 6px; }
+.profile-danger-zone { margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--border); }

@@ -271,9 +271,18 @@ def api_clients():
     return jsonify(rows)
 
 
-@app.route("/api/clients/<int:client_id>", methods=["GET", "PUT"])
+@app.route("/api/clients/<int:client_id>", methods=["GET", "PUT", "DELETE"])
 def api_client_detail(client_id):
     db = get_db()
+    if request.method == "DELETE":
+        db.execute("DELETE FROM client_links WHERE client_id = ?", (client_id,))
+        db.execute("UPDATE tasks SET client_id = NULL WHERE client_id = ?", (client_id,))
+        db.execute("UPDATE drafts SET client_id = NULL WHERE client_id = ?", (client_id,))
+        db.execute("UPDATE sales_tax_returns SET client_id = NULL WHERE client_id = ?", (client_id,))
+        db.execute("DELETE FROM clients WHERE id = ?", (client_id,))
+        db.commit()
+        return "", 204
+
     if request.method == "PUT":
         data = request.json or {}
         fields = ["name", "ntn", "cnic", "contact_info", "registration_status", "status_notes", "enrichment_notes"]
