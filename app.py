@@ -656,7 +656,18 @@ def api_notes():
         db.commit()
         return jsonify({"id": cur.lastrowid}), 201
 
-    rows = rows_as_dicts(db.execute("SELECT * FROM notes ORDER BY id DESC"))
+    q = request.args.get("q", "").strip().lower()
+    limit = request.args.get("limit", type=int)
+    sql = "SELECT * FROM notes"
+    params = []
+    if q:
+        sql += " WHERE lower(content) LIKE ?"
+        params.append(f"%{q}%")
+    sql += " ORDER BY id DESC"
+    if limit:
+        sql += " LIMIT ?"
+        params.append(limit)
+    rows = rows_as_dicts(db.execute(sql, params))
     return jsonify(rows)
 
 

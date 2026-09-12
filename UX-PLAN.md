@@ -59,10 +59,14 @@ redesign — it's giving urgent things a louder voice than routine ones.
       Tasks/Notepad) · Clients & money (Clients/Sales Tax/NTN Lookup/Recurring/Drafts/Tax
       Calculator) · Admin (Backups) — with a thin divider, no change to what each tab does.
 
-### Phase 3 — once the above settles (depth)
-- [ ] `prefers-color-scheme: dark` block in the existing token set.
-- [ ] One shared toast pattern for Saved/Deleted/error.
-- [ ] Single header search across clients + tasks + notes.
+### Phase 3 — once the above settles (depth) — ✅ done 2026-09-12
+- [x] `prefers-color-scheme: dark` block in the existing token set — plus fixed ~10 hardcoded
+      `white`/light-hex backgrounds (task cards, nav active tab, dropdowns, inputs) that would
+      have stayed white and broken the effect. Tested live — renders correctly.
+- [x] One shared toast pattern (`toast()` + `#toast`) for Saved/Deleted/error, replacing the
+      duplicated message-span code in Clients/Profile/Drafts; also added to task/client delete.
+- [x] Single header search (`#global-search`) querying clients + tasks + notes together,
+      grouped results, jumps straight to the client profile or filtered Tasks/Notepad tab.
 
 ### Phase 4 — when there's time (compounding polish)
 - [ ] Keyboard shortcuts for frequent moves (jump to Today, jump to Clients, focus search).

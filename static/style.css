@@ -1,6 +1,7 @@
 :root {
   --bg: #f4f6f8;
   --panel: #ffffff;
+  --panel-2: #f3f5f7;
   --text: #1f2937;
   --muted: #6b7280;
   --border: #e5e7eb;
@@ -11,6 +12,25 @@
   --normal: #2563eb;
   --low: #9ca3af;
   --done: #16a34a;
+}
+/* Dark mode - same token names, dark values, no new components. Late-evening litigation
+   work no longer gets full daylight glare when the OS is set to dark. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #10151a;
+    --panel: #171e24;
+    --panel-2: #1d252c;
+    --text: #e4e9ec;
+    --muted: #93a3ac;
+    --border: #2b353d;
+    --accent: #6ea8dc;
+    --urgent: #e0554a;
+    --urgent2: #e2933a;
+    --blocked: #8a97a1;
+    --normal: #4f8fe0;
+    --low: #6b7684;
+    --done: #3fb377;
+  }
 }
 * { box-sizing: border-box; }
 body {
@@ -46,7 +66,7 @@ nav button {
   cursor: pointer;
   font-size: 15px;
 }
-nav button.active { background: white; color: var(--accent); font-weight: 600; }
+nav button.active { background: var(--panel); color: var(--accent); font-weight: 600; }
 main { padding: 20px 24px; max-width: 1200px; margin: 0 auto; }
 .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
@@ -80,7 +100,7 @@ main { padding: 20px 24px; max-width: 1200px; margin: 0 auto; }
   border-radius: 8px;
   padding: 10px 12px;
   margin-bottom: 8px;
-  background: #fafbfc;
+  background: var(--panel-2);
 }
 .task-card.pri-URGENT-OVERDUE, .task-card.pri-URGENT-VERIFY-DATE { border-left-color: var(--urgent); }
 .task-card.pri-URGENT { border-left-color: var(--urgent2); }
@@ -101,11 +121,11 @@ button.btn {
   padding: 7px 14px; border-radius: 6px; border: 1px solid var(--accent);
   background: var(--accent); color: white; cursor: pointer; font-size: 15px;
 }
-button.btn.secondary { background: white; color: var(--accent); }
+button.btn.secondary { background: var(--panel); color: var(--accent); }
 table { width: 100%; border-collapse: collapse; font-size: 15px; }
 th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
 th { color: var(--muted); font-weight: 600; font-size: 13px; text-transform: uppercase; }
-tr:hover td { background: #f9fafb; }
+tr:hover td { background: var(--panel-2); }
 
 /* Under ~900px, dense tables (Tasks/Clients/Passwords/Sales Tax) collapse from rows into
    stacked label/value cards instead of forcing horizontal scroll or squeezed columns. */
@@ -138,21 +158,21 @@ tr:hover td { background: #f9fafb; }
 .toggle-group { display: flex; gap: 6px; flex-wrap: wrap; }
 .toggle-btn {
   padding: 7px 14px; border-radius: 6px; border: 1px solid var(--border);
-  background: white; color: var(--text); cursor: pointer; font-size: 15px;
+  background: var(--panel); color: var(--text); cursor: pointer; font-size: 15px;
 }
 .toggle-btn.active { background: var(--accent); color: white; border-color: var(--accent); font-weight: 600; }
-.toggle-btn:hover:not(.active) { background: #f0f4f8; }
+.toggle-btn:hover:not(.active) { background: var(--panel-2); }
 .cred-input { width: 100%; border: 1px solid transparent; background: transparent; font-size: 15px; padding: 3px 5px; border-radius: 4px; font-family: inherit; }
 .cred-input:hover { border-color: var(--border); }
-.cred-input:focus { border-color: var(--accent); background: white; outline: none; }
+.cred-input:focus { border-color: var(--accent); background: var(--panel); outline: none; }
 .cell-input { border: 1px solid transparent; background: transparent; font-size: 15px; padding: 3px 5px; border-radius: 4px; font-family: inherit; resize: vertical; }
 .cell-input:hover { border-color: var(--border); }
-.cell-input:focus { border-color: var(--accent); background: white; outline: none; }
+.cell-input:focus { border-color: var(--accent); background: var(--panel); outline: none; }
 textarea.cell-input { min-height: 32px; }
 .cred-mask-wrap { display: flex; align-items: center; gap: 4px; }
 .cred-mask-wrap .cred-input { flex: 1; min-width: 70px; }
 .btn-copy { border: none; background: transparent; cursor: pointer; font-size: 15px; padding: 2px 4px; border-radius: 4px; }
-.btn-copy:hover { background: #f0f4f8; }
+.btn-copy:hover { background: var(--panel-2); }
 a.link { color: var(--accent); text-decoration: none; }
 a.link:hover { text-decoration: underline; }
 .portal-bar-wrap {
@@ -160,15 +180,24 @@ a.link:hover { text-decoration: underline; }
   padding: 8px 24px; background: var(--panel); border-bottom: 1px solid var(--border);
 }
 .portal-bar { display: flex; gap: 6px; flex-wrap: wrap; }
+.global-search-wrap { position: relative; margin-left: auto; }
+.global-search-wrap input { width: 260px; }
+.global-search-wrap .picker-results { right: 0; left: auto; }
+.search-group-label {
+  font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+  color: var(--muted); padding: 8px 10px 2px;
+}
+.search-result-row { display: block; }
+.search-result-row .small { display: block; }
 a.toggle-btn.portal-btn { text-decoration: none; padding: 5px 12px; font-size: 13px; }
 .portal-task-link { font-size: 13px; margin-left: 4px; white-space: nowrap; }
 .picker-results {
   position: absolute; z-index: 10; top: 100%; left: 0; width: 260px;
-  background: white; border: 1px solid var(--border); border-radius: 6px;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 6px;
   box-shadow: 0 4px 12px rgba(0,0,0,0.12); max-height: 220px; overflow-y: auto;
 }
 .picker-results .picker-row { padding: 7px 10px; font-size: 15px; cursor: pointer; }
-.picker-results .picker-row:hover { background: #f0f4f8; }
+.picker-results .picker-row:hover { background: var(--panel-2); }
 .checklist-toggle { cursor: pointer; font-size: 13px; font-weight: 700; color: var(--accent); background: none; border: none; padding: 0; }
 .checklist-box { margin-top: 6px; min-width: 180px; }
 .checklist-box label { display: flex; align-items: center; gap: 6px; font-size: 13px; margin-bottom: 3px; cursor: pointer; }
@@ -194,7 +223,7 @@ a.toggle-btn.portal-btn { text-decoration: none; padding: 5px 12px; font-size: 1
 }
 .st-readonly-row td { color: var(--text); }
 .btn-row-edit { border: none; background: transparent; cursor: pointer; font-size: 15px; padding: 2px 6px; border-radius: 4px; }
-.btn-row-edit:hover { background: #f0f4f8; }
+.btn-row-edit:hover { background: var(--panel-2); }
 
 /* Client name links (Today/staff cards -> full profile) */
 a.client-link { color: inherit; text-decoration: underline; text-decoration-style: dotted; }
@@ -209,3 +238,14 @@ a.client-link:hover { color: var(--accent); }
 .profile-folder-group ul { margin: 4px 0 0; padding-left: 0; list-style: none; }
 .profile-folder-group li { margin-bottom: 6px; }
 .profile-danger-zone { margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--border); }
+
+/* Shared toast - one place for "Saved"/"Deleted"/error feedback, replacing the one-off
+   message spans every tab used to hand-roll (client-save-msg, profile-save-msg, etc.). */
+.toast {
+  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(8px);
+  background: var(--text); color: var(--bg); padding: 10px 20px; border-radius: 8px;
+  font-size: 14px; font-weight: 600; box-shadow: 0 6px 20px rgba(0,0,0,0.25);
+  z-index: 200; opacity: 0; pointer-events: none; transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.toast.error { background: var(--urgent); color: white; }

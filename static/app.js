@@ -89,6 +89,18 @@ function linkify(s) {
   const escaped = esc(s);
   return escaped.replace(/(https?:\/\/[^\s<]+)/g, (url) => `<a class="link" href="${url}" target="_blank">${url}</a>`);
 }
+// Shared toast - one place for "Saved"/"Deleted"/error feedback instead of every tab
+// hand-rolling its own message span.
+let toastTimer = null;
+function toast(message, kind = "success") {
+  const el = document.getElementById("toast");
+  if (!el) return;
+  el.textContent = message;
+  el.classList.toggle("error", kind === "error");
+  clearTimeout(toastTimer);
+  el.classList.add("show");
+  toastTimer = setTimeout(() => el.classList.remove("show"), 1800);
+}
 // Shared debounce for the tab search boxes (Clients/Tasks/Sales Tax/Credentials) - one
 // place to tune the delay, and it's why lists no longer refetch on every keystroke.
 function debounce(fn, delay = 250) {
@@ -466,6 +478,7 @@ async function loadTasks() {
     tr.querySelector(".btn-del").addEventListener("click", async () => {
       if (!confirm("Ye task delete karna hai?")) return;
       await fetch(API + `/api/tasks/${id}`, { method: "DELETE" });
+      toast("Task deleted");
       loadTasks();
     });
   });
@@ -612,7 +625,6 @@ async function showClientDetail(id) {
     </div>
     <label class="small">Notes:</label>
     <textarea class="client-field followup-msg" data-field="status_notes" style="min-height:60px;">${esc(c.status_notes || "")}</textarea>
-    <span class="small" id="client-save-msg"></span>
     <b>Folders</b>
     <ul>${links.map(l => `<li>${esc(l.category)}: ${l.link_target ? `
       <button type="button" class="btn btn-open-folder" data-path="${esc(l.link_target)}">📂 ${esc(l.link_text||l.category)}</button>
@@ -635,13 +647,11 @@ async function showClientDetail(id) {
   if (fullProfileBtn) fullProfileBtn.addEventListener("click", () => openClientProfile(id, "clients"));
   el.querySelectorAll(".client-field").forEach(field => {
     field.addEventListener("change", async () => {
-      const msg = document.getElementById("client-save-msg");
       await fetch(API + `/api/clients/${id}`, {
         method: "PUT", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ [field.dataset.field]: field.value }),
       });
-      msg.textContent = "✅ Saved";
-      setTimeout(() => { msg.textContent = ""; }, 1200);
+      toast("Saved");
     });
   });
   wireCardStatusSelects(el, () => showClientDetail(id));
@@ -762,7 +772,6 @@ async function openClientProfile(clientId, returnTab) {
       </div>
       <label class="small">Notes:</label>
       <textarea class="client-field followup-msg" data-field="status_notes" style="min-height:50px;">${esc(c.status_notes || "")}</textarea>
-      <span class="small" id="profile-save-msg"></span>
     </div>
 
     <div class="profile-stats">${countChips || '<span class="small">Koi task nahi</span>'}</div>
@@ -806,13 +815,11 @@ async function openClientProfile(clientId, returnTab) {
   content.querySelectorAll(".client-field").forEach(field => {
     const evt = field.tagName === "TEXTAREA" ? "blur" : "change";
     field.addEventListener(evt, async () => {
-      const msg = document.getElementById("profile-save-msg");
       await fetch(API + `/api/clients/${clientId}`, {
         method: "PUT", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ [field.dataset.field]: field.value }),
       });
-      msg.textContent = "✅ Saved";
-      setTimeout(() => { msg.textContent = ""; }, 1200);
+      toast("Saved");
     });
   });
   wireCardStatusSelects(content, () => openClientProfile(clientId, profileReturnTab));
@@ -825,6 +832,7 @@ async function openClientProfile(clientId, returnTab) {
   });
   content.querySelector("#btn-profile-delete-confirm").addEventListener("click", async () => {
     await fetch(API + `/api/clients/${clientId}`, { method: "DELETE" });
+    toast("Client deleted");
     showTab(profileReturnTab);
     if (profileReturnTab === "today") loadToday();
     if (profileReturnTab === "clients") {
@@ -834,6 +842,75 @@ async function openClientProfile(clientId, returnTab) {
     }
   });
 }
+
+// ---- Global search (header) - queries clients, tasks and notes together and jumps
+// straight to the right tab/profile, instead of five separate per-tab searches. ----
+async function runGlobalSearchFromInput() {
+  const q = document.getElementById("global-search").value.trim();
+  const resultsEl = document.getElementById("global-search-results");
+  if (!q) { resultsEl.style.display = "none"; return; }
+  const [clients, tasks, notes] = await Promise.all([
+    fetch(API + "/api/clients?q=" + encodeURIComponent(q)).then(r => r.json()),
+    fetch(API + "/api/tasks?q=" + encodeURIComponent(q)).then(r => r.json()),
+    fetch(API + "/api/notes?q=" + encodeURIComponent(q) + "&limit=5").then(r => r.json()),
+  ]);
+  const topClients = clients.slice(0, 5);
+  const topTasks = tasks.slice(0, 5);
+  const topNotes = notes.slice(0, 5);
+  if (!topClients.length && !topTasks.length && !topNotes.length) {
+    resultsEl.innerHTML = '<div class="picker-row empty">Kuch nahi mila.</div>';
+    resultsEl.style.display = "block";
+    return;
+  }
+  let html = "";
+  if (topClients.length) {
+    html += '<div class="search-group-label">Clients</div>' + topClients.map(c =>
+      `<div class="picker-row search-result-row" data-type="client" data-id="${c.id}">${esc(c.name)} <span class="small">${esc(c.ntn || "")}</span></div>`
+    ).join("");
+  }
+  if (topTasks.length) {
+    html += '<div class="search-group-label">Tasks</div>' + topTasks.map(t =>
+      `<div class="picker-row search-result-row" data-type="task" data-id="${t.id}" data-client-id="${t.client_id || ""}" data-filter="${esc(t.client_display_name || t.client_name_raw || t.task_type || "")}">${esc(t.client_display_name || t.client_name_raw || "-")} <span class="small">${esc(t.task_type || "")}</span></div>`
+    ).join("");
+  }
+  if (topNotes.length) {
+    html += '<div class="search-group-label">Notes</div>' + topNotes.map(n => {
+      const preview = (n.content || "").slice(0, 70) + ((n.content || "").length > 70 ? "…" : "");
+      return `<div class="picker-row search-result-row" data-type="note" data-id="${n.id}">${esc(preview)}</div>`;
+    }).join("");
+  }
+  resultsEl.innerHTML = html;
+  resultsEl.style.display = "block";
+  resultsEl.querySelectorAll(".search-result-row").forEach(row => {
+    row.addEventListener("click", () => {
+      resultsEl.style.display = "none";
+      document.getElementById("global-search").value = "";
+      const type = row.dataset.type;
+      const activeBtn = document.querySelector("nav button.active");
+      const returnTab = activeBtn ? activeBtn.dataset.tab : "today";
+      if (type === "client") {
+        openClientProfile(row.dataset.id, returnTab);
+      } else if (type === "task") {
+        if (row.dataset.clientId) {
+          openClientProfile(row.dataset.clientId, returnTab);
+        } else {
+          showTab("tasks");
+          document.getElementById("task-search").value = row.dataset.filter || "";
+          loadTasks();
+        }
+      } else if (type === "note") {
+        showTab("notepad");
+        loadNotepad();
+      }
+    });
+  });
+}
+document.getElementById("global-search").addEventListener("input", debounce(runGlobalSearchFromInput));
+document.addEventListener("click", (e) => {
+  if (!e.target.closest(".global-search-wrap")) {
+    document.getElementById("global-search-results").style.display = "none";
+  }
+});
 
 // ---- Backups ----
 async function loadBackups() {
@@ -1414,7 +1491,6 @@ document.getElementById("btn-draft-save").addEventListener("click", async () => 
   const content = document.getElementById("draft-content").value;
   const title = document.getElementById("draft-title").value.trim();
   const draftType = document.getElementById("draft-type").value;
-  const msg = document.getElementById("draft-save-msg");
   if (draftEditingId) {
     await fetch(API + `/api/drafts/${draftEditingId}`, {
       method: "PUT", headers: { "Content-Type": "application/json" },
@@ -1432,8 +1508,7 @@ document.getElementById("btn-draft-save").addEventListener("click", async () => 
     const data = await r.json();
     draftEditingId = data.id;
   }
-  msg.textContent = "✅ Saved";
-  setTimeout(() => { msg.textContent = ""; }, 1500);
+  toast("Draft saved");
   loadDrafts(draftListClientId);
 });
 

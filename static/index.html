@@ -29,6 +29,10 @@
 <div class="portal-bar-wrap">
   <span class="small">🔗 Portals:</span>
   <div class="portal-bar" id="portal-bar"></div>
+  <div class="global-search-wrap">
+    <input type="text" id="global-search" placeholder="🔍 Client, task ya note search karein...">
+    <div id="global-search-results" class="picker-results" style="display:none; width:340px;"></div>
+  </div>
 </div>
 <main>
 
@@ -106,7 +110,6 @@
         <textarea id="draft-content" class="followup-msg" style="min-height:180px;"></textarea>
         <div class="toolbar" style="margin-top:8px;">
           <button class="btn" id="btn-draft-save">Save Draft</button>
-          <span class="small" id="draft-save-msg"></span>
         </div>
       </div>
       <div class="toolbar" style="margin-top:16px;">
@@ -418,6 +421,7 @@
   </section>
 
 </main>
+<div id="toast" class="toast"></div>
 <script src="app.js"></script>
 </body>
 </html>
