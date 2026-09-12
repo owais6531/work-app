@@ -249,3 +249,19 @@ a.client-link:hover { color: var(--accent); }
 }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 .toast.error { background: var(--urgent); color: white; }
+
+/* Print - only meaningful on the Full Profile page (the only tab someone would hand a
+   client's whole file to paper from). Chrome/nav/buttons drop out, editable-looking
+   borders drop out, everything else prints as plain text on white. */
+@media print {
+  header, .portal-bar-wrap, #toast, .no-print,
+  .btn-open-folder, .btn-copy-folder, .profile-danger-zone { display: none !important; }
+  body { background: white; color: black; }
+  main { max-width: none; padding: 0; }
+  .panel { border: none; box-shadow: none; padding: 0; }
+  input, select, textarea {
+    border: none !important; background: transparent !important; color: black !important;
+    padding: 0 !important; resize: none;
+  }
+  a { color: black; text-decoration: none; }
+}

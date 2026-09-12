@@ -68,6 +68,14 @@ redesign — it's giving urgent things a louder voice than routine ones.
 - [x] Single header search (`#global-search`) querying clients + tasks + notes together,
       grouped results, jumps straight to the client profile or filtered Tasks/Notepad tab.
 
-### Phase 4 — when there's time (compounding polish)
-- [ ] Keyboard shortcuts for frequent moves (jump to Today, jump to Clients, focus search).
-- [ ] Print stylesheet for the Full Profile page.
+### Phase 4 — when there's time (compounding polish) — ✅ done 2026-09-12
+- [x] Keyboard shortcuts (skipped when typing in any field): `/` focuses header search,
+      `t` jumps to Today, `c` jumps to Clients & Passwords. Refactored tab-switch logic into
+      one `activateTab()` so nav clicks and shortcuts share the same code path.
+- [x] Print stylesheet + a "🖨 Print" button on the Full Profile page — header/nav/toast/
+      folder-buttons/delete-zone drop out, inputs render as plain text, for handing a client's
+      whole file to paper. (Not click-tested live - `window.print()` opens a native OS dialog
+      that would hang browser automation the same way `alert()`/`prompt()` does; verified by
+      CSS review instead.)
+
+All 4 phases from the original audit are now done. Revisit this file if new friction shows up.

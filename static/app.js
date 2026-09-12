@@ -139,25 +139,49 @@ async function openFolderPath(path, btn) {
 }
 
 // ---- Tabs ----
+function activateTab(tab) {
+  document.querySelectorAll("nav button").forEach(b => b.classList.toggle("active", b.dataset.tab === tab));
+  document.querySelectorAll("main > section").forEach(s => s.style.display = "none");
+  document.getElementById("tab-" + tab).style.display = "block";
+  if (tab === "today") loadToday();
+  if (tab === "followups") loadFollowups();
+  if (tab === "approvals") loadApprovals();
+  if (tab === "tasks") loadTasks();
+  if (tab === "clients") { loadClients(); loadCredentials(); }
+  if (tab === "salestax") loadSalesTax();
+  if (tab === "notepad") loadNotepad();
+  if (tab === "recurring") loadRecurring();
+  if (tab === "drafts") loadDrafts();
+  if (tab === "taxcalc") loadTaxCalc();
+  if (tab === "backups") loadBackups();
+}
 document.querySelectorAll("nav button").forEach(btn => {
-  btn.addEventListener("click", () => {
-    document.querySelectorAll("nav button").forEach(b => b.classList.remove("active"));
-    btn.classList.add("active");
-    document.querySelectorAll("main > section").forEach(s => s.style.display = "none");
-    document.getElementById("tab-" + btn.dataset.tab).style.display = "block";
-    if (btn.dataset.tab === "today") loadToday();
-    if (btn.dataset.tab === "followups") loadFollowups();
-    if (btn.dataset.tab === "approvals") loadApprovals();
-    if (btn.dataset.tab === "tasks") loadTasks();
-    if (btn.dataset.tab === "clients") { loadClients(); loadCredentials(); }
-    if (btn.dataset.tab === "salestax") loadSalesTax();
-    if (btn.dataset.tab === "ntnlookup") { /* no pre-load needed */ }
-    if (btn.dataset.tab === "notepad") loadNotepad();
-    if (btn.dataset.tab === "recurring") loadRecurring();
-    if (btn.dataset.tab === "drafts") loadDrafts();
-    if (btn.dataset.tab === "taxcalc") loadTaxCalc();
-    if (btn.dataset.tab === "backups") loadBackups();
-  });
+  btn.addEventListener("click", () => activateTab(btn.dataset.tab));
+});
+
+// Keyboard shortcuts for the moves made most often - only fire when not typing in a field.
+// "/" focuses the header search (skipped there so "/" still types normally in a text field).
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    const results = document.getElementById("global-search-results");
+    if (results) results.style.display = "none";
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    return;
+  }
+  if (e.altKey || e.ctrlKey || e.metaKey) return;
+  const tag = document.activeElement ? document.activeElement.tagName : "";
+  const isEditable = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" ||
+    (document.activeElement && document.activeElement.isContentEditable);
+  if (e.key === "/" && !isEditable) {
+    e.preventDefault();
+    const search = document.getElementById("global-search");
+    search.focus();
+    search.value = "";
+    return;
+  }
+  if (isEditable) return;
+  if (e.key === "t" || e.key === "T") activateTab("today");
+  else if (e.key === "c" || e.key === "C") activateTab("clients");
 });
 
 // ---- Today ----
@@ -681,6 +705,7 @@ function showTab(tab) {
   document.getElementById("tab-" + tab).style.display = "block";
 }
 
+document.getElementById("btn-profile-print").addEventListener("click", () => window.print());
 document.getElementById("btn-profile-back").addEventListener("click", () => {
   showTab(profileReturnTab);
   if (profileReturnTab === "today") loadToday();

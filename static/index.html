@@ -30,7 +30,7 @@
   <span class="small">🔗 Portals:</span>
   <div class="portal-bar" id="portal-bar"></div>
   <div class="global-search-wrap">
-    <input type="text" id="global-search" placeholder="🔍 Client, task ya note search karein...">
+    <input type="text" id="global-search" placeholder="🔍 Search karein... ( / )" title="Shortcuts: / search, t Today, c Clients">
     <div id="global-search-results" class="picker-results" style="display:none; width:340px;"></div>
   </div>
 </div>
@@ -401,7 +401,10 @@
 
   <section id="tab-profile" style="display:none;">
     <div class="panel">
-      <button class="btn secondary" id="btn-profile-back">← Wapas</button>
+      <div class="toolbar no-print" style="justify-content:space-between;">
+        <button class="btn secondary" id="btn-profile-back">← Wapas</button>
+        <button class="btn secondary" id="btn-profile-print">🖨 Print</button>
+      </div>
       <div id="profile-content"></div>
     </div>
   </section>
