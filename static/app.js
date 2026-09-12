@@ -144,6 +144,7 @@ function activateTab(tab) {
   document.querySelectorAll("main > section").forEach(s => s.style.display = "none");
   document.getElementById("tab-" + tab).style.display = "block";
   if (tab === "today") loadToday();
+  if (tab === "calendar") loadCalendar();
   if (tab === "followups") loadFollowups();
   if (tab === "approvals") loadApprovals();
   if (tab === "tasks") loadTasks();
@@ -270,6 +271,97 @@ function wireCardStatusSelects(container, onSaved) {
     });
   });
 }
+
+// ---- Calendar ----
+let calendarViewDate = new Date();
+let calendarTasksCache = [];
+
+function ymd(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+async function loadCalendar() {
+  const r = await fetch(API + "/api/tasks");
+  calendarTasksCache = await r.json();
+  renderCalendarGrid();
+}
+
+function renderCalendarGrid() {
+  const year = calendarViewDate.getFullYear();
+  const month = calendarViewDate.getMonth();
+  const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  document.getElementById("cal-month-label").textContent = `${monthNames[month]} ${year}`;
+
+  const firstOfMonth = new Date(year, month, 1);
+  const startWeekday = firstOfMonth.getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const daysInPrevMonth = new Date(year, month, 0).getDate();
+  const todayStr = ymd(new Date());
+  const priorityOrder = ["URGENT-OVERDUE","URGENT","URGENT-VERIFY DATE","BLOCKED","NORMAL","LOW"];
+
+  const tasksByDate = {};
+  calendarTasksCache.forEach(t => {
+    if (!t.due_date) return;
+    const d = t.due_date.slice(0, 10);
+    (tasksByDate[d] = tasksByDate[d] || []).push(t);
+  });
+
+  const totalCells = Math.ceil((startWeekday + daysInMonth) / 7) * 7;
+  const cells = [];
+  for (let i = 0; i < totalCells; i++) {
+    const dayOffset = i - startWeekday;
+    let cellDate, otherMonth = false;
+    if (dayOffset < 0) { cellDate = new Date(year, month - 1, daysInPrevMonth + dayOffset + 1); otherMonth = true; }
+    else if (dayOffset >= daysInMonth) { cellDate = new Date(year, month + 1, dayOffset - daysInMonth + 1); otherMonth = true; }
+    else { cellDate = new Date(year, month, dayOffset + 1); }
+    const dateStr = ymd(cellDate);
+    const dayTasks = (tasksByDate[dateStr] || []).slice().sort((a, b) =>
+      priorityOrder.indexOf(a.priority) - priorityOrder.indexOf(b.priority));
+    cells.push({ cellDate, dateStr, otherMonth, dayTasks });
+  }
+
+  const container = document.getElementById("cal-days");
+  container.innerHTML = cells.map(c => {
+    const isToday = c.dateStr === todayStr;
+    const visible = c.dayTasks.slice(0, 3);
+    const overflow = c.dayTasks.length - visible.length;
+    const chips = visible.map(t => {
+      const client = esc(t.client_display_name || t.client_name_raw || "-");
+      const done = t.status === "Done" || t.status === "Closed";
+      return `<span class="cal-chip pri-${(t.priority || "NORMAL").replace(/\s+/g, "-")} ${done ? "done" : ""}" data-client-id="${t.client_id || ""}" data-filter="${esc(t.client_display_name || t.client_name_raw || t.task_type || "")}" title="${client} — ${esc(t.task_type || "")}">${client}</span>`;
+    }).join("");
+    const more = overflow > 0 ? `<span class="cal-more">+${overflow} more</span>` : "";
+    const count = c.dayTasks.length ? `<span class="cal-count">${c.dayTasks.length} task${c.dayTasks.length > 1 ? "s" : ""}</span>` : "";
+    return `<div class="cal-day ${c.otherMonth ? "other-month" : ""} ${isToday ? "is-today" : ""}">
+      <div class="cal-daynum">${c.cellDate.getDate()}</div>
+      ${chips}${more}${count}
+    </div>`;
+  }).join("");
+
+  container.querySelectorAll(".cal-chip, .cal-more").forEach(chip => {
+    chip.addEventListener("click", () => {
+      if (chip.dataset.clientId) {
+        openClientProfile(chip.dataset.clientId, "calendar");
+      } else {
+        activateTab("tasks");
+        document.getElementById("task-search").value = chip.dataset.filter || "";
+        loadTasks();
+      }
+    });
+  });
+}
+document.getElementById("btn-cal-prev").addEventListener("click", () => {
+  calendarViewDate = new Date(calendarViewDate.getFullYear(), calendarViewDate.getMonth() - 1, 1);
+  renderCalendarGrid();
+});
+document.getElementById("btn-cal-next").addEventListener("click", () => {
+  calendarViewDate = new Date(calendarViewDate.getFullYear(), calendarViewDate.getMonth() + 1, 1);
+  renderCalendarGrid();
+});
+document.getElementById("btn-cal-today").addEventListener("click", () => {
+  calendarViewDate = new Date();
+  renderCalendarGrid();
+});
 
 // ---- Follow-ups (one combined message per person, not per task) ----
 function followupLineForTask(t) {
@@ -408,7 +500,10 @@ async function loadTasks() {
   if (project) params.set("project", project);
   if (day) params.set("plan_day", day);
   const r = await fetch(API + "/api/tasks?" + params.toString());
-  const rows = await r.json();
+  let rows = await r.json();
+  if (document.getElementById("f-unmatched").checked) {
+    rows = rows.filter(t => !t.client_id);
+  }
   const tbody = document.getElementById("tasks-body");
   if (!rows.length) {
     tbody.innerHTML = '<tr><td colspan="12" class="empty">Koi task nahi mila.</td></tr>';
@@ -559,7 +654,7 @@ async function updateTask(id, patch) {
   });
 }
 document.getElementById("task-search").addEventListener("input", debounce(loadTasks));
-["f-status","f-priority","f-owner","f-project","f-day"].forEach(id => {
+["f-status","f-priority","f-owner","f-project","f-day","f-unmatched"].forEach(id => {
   document.getElementById(id).addEventListener("change", loadTasks);
 });
 document.getElementById("btn-refresh-tasks").addEventListener("click", loadTasks);

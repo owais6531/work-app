@@ -12,6 +12,7 @@
   <h1>📋 Office Dashboard — Umair Tax Consultant</h1>
   <nav>
     <button data-tab="today" class="active">Today</button>
+    <button data-tab="calendar">Calendar</button>
     <button data-tab="followups">Follow-ups</button>
     <button data-tab="approvals">Approvals</button>
     <button data-tab="tasks">Tasks</button>
@@ -54,6 +55,24 @@
           <div id="today-claude"></div>
         </div>
       </div>
+    </div>
+  </section>
+
+  <section id="tab-calendar" style="display:none;">
+    <div class="panel">
+      <div class="cal-header">
+        <button class="btn secondary" id="btn-cal-prev">←</button>
+        <h2 id="cal-month-label"></h2>
+        <button class="btn secondary" id="btn-cal-next">→</button>
+        <button class="btn secondary" id="btn-cal-today" style="margin-left:auto;">Aaj</button>
+      </div>
+      <div class="small" style="margin:8px 0 14px;">Due dates ka month view — kisi bhi client/task chip par click karke seedha wahan pahunch jayein.</div>
+      <div class="cal-grid" id="cal-weekdays">
+        <div class="cal-weekday">Sun</div><div class="cal-weekday">Mon</div><div class="cal-weekday">Tue</div>
+        <div class="cal-weekday">Wed</div><div class="cal-weekday">Thu</div><div class="cal-weekday">Fri</div>
+        <div class="cal-weekday">Sat</div>
+      </div>
+      <div class="cal-grid" id="cal-days"></div>
     </div>
   </section>
 
@@ -148,6 +167,9 @@
           <option value="1">Day 1</option><option value="2">Day 2</option><option value="3">Day 3</option>
           <option value="4">Day 4</option><option value="5">Day 5</option>
         </select>
+        <label class="small" style="display:flex; align-items:center; gap:5px; cursor:pointer;">
+          <input type="checkbox" id="f-unmatched"> Unmatched clients only
+        </label>
         <button class="btn secondary" id="btn-refresh-tasks">Refresh</button>
       </div>
       <table class="responsive-table">
