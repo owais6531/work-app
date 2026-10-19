@@ -719,6 +719,50 @@ document.getElementById("btn-new-client-save").addEventListener("click", async (
   showClientDetail(data.id);
 });
 
+// ---- Edit Client modal - explicit edit form (incl. Name, which has no inline field) ----
+let editClientOnSaved = null;
+function openEditClientModal(c, onSaved) {
+  document.getElementById("edit-client-id").value = c.id;
+  document.getElementById("edit-client-name").value = c.name || "";
+  document.getElementById("edit-client-ntn").value = c.ntn || "";
+  document.getElementById("edit-client-cnic").value = c.cnic || "";
+  document.getElementById("edit-client-contact").value = c.contact_info || "";
+  document.getElementById("edit-client-reg").value = c.registration_status || "";
+  document.getElementById("edit-client-notes").value = c.status_notes || "";
+  document.getElementById("edit-client-msg").textContent = "";
+  editClientOnSaved = onSaved;
+  document.getElementById("edit-client-modal-overlay").style.display = "flex";
+  document.getElementById("edit-client-name").focus();
+}
+function closeEditClientModal() {
+  document.getElementById("edit-client-modal-overlay").style.display = "none";
+}
+document.getElementById("btn-edit-client-cancel").addEventListener("click", closeEditClientModal);
+document.getElementById("edit-client-modal-overlay").addEventListener("click", (e) => {
+  if (e.target.id === "edit-client-modal-overlay") closeEditClientModal();
+});
+document.getElementById("btn-edit-client-save").addEventListener("click", async () => {
+  const id = document.getElementById("edit-client-id").value;
+  const name = document.getElementById("edit-client-name").value.trim();
+  const msg = document.getElementById("edit-client-msg");
+  if (!name) { msg.textContent = "Name zaroori hai."; msg.style.color = "var(--urgent)"; return; }
+  const r = await fetch(API + `/api/clients/${id}`, {
+    method: "PUT", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      name,
+      ntn: document.getElementById("edit-client-ntn").value.trim(),
+      cnic: document.getElementById("edit-client-cnic").value.trim(),
+      contact_info: document.getElementById("edit-client-contact").value.trim(),
+      registration_status: document.getElementById("edit-client-reg").value.trim(),
+      status_notes: document.getElementById("edit-client-notes").value,
+    }),
+  });
+  if (!r.ok) { msg.textContent = "Save nahi ho saka."; msg.style.color = "var(--urgent)"; return; }
+  closeEditClientModal();
+  toast("Saved");
+  if (editClientOnSaved) editClientOnSaved();
+});
+
 async function showClientDetail(id) {
   const r = await fetch(API + `/api/clients/${id}`);
   const data = await r.json();
@@ -730,6 +774,7 @@ async function showClientDetail(id) {
     <h3>${esc(c.name)} <span class="small">${esc(c.ntn || "")}</span></h3>
     <div class="toolbar">
       <button type="button" class="btn secondary btn-full-profile">👤 Full Profile kholein</button>
+      <button type="button" class="btn btn-edit-client">✏️ Edit Client</button>
     </div>
     <div class="toolbar">
       <label class="small">CNIC:
@@ -764,6 +809,8 @@ async function showClientDetail(id) {
   });
   const fullProfileBtn = el.querySelector(".btn-full-profile");
   if (fullProfileBtn) fullProfileBtn.addEventListener("click", () => openClientProfile(id, "clients"));
+  el.querySelector(".btn-edit-client").addEventListener("click", () =>
+    openEditClientModal(c, () => { loadClients(); showClientDetail(id); }));
   el.querySelectorAll(".client-field").forEach(field => {
     field.addEventListener("change", async () => {
       await fetch(API + `/api/clients/${id}`, {
@@ -871,7 +918,9 @@ async function openClientProfile(clientId, returnTab) {
 
   content.innerHTML = `
     <div class="profile-header">
-      <h2>${esc(c.name)} <span class="small">#${c.id}</span></h2>
+      <h2>${esc(c.name)} <span class="small">#${c.id}</span>
+        <button type="button" class="btn no-print" id="btn-profile-edit" style="margin-left:10px; font-size:14px;">✏️ Edit Client</button>
+      </h2>
       <div class="toolbar">
         <label class="small">NTN:
           <input type="text" class="client-field" data-field="ntn" value="${esc(c.ntn || "")}" style="width:150px;">
@@ -943,6 +992,9 @@ async function openClientProfile(clientId, returnTab) {
     });
   });
   wireCardStatusSelects(content, () => openClientProfile(clientId, profileReturnTab));
+
+  content.querySelector("#btn-profile-edit").addEventListener("click", () =>
+    openEditClientModal(c, () => openClientProfile(clientId, profileReturnTab)));
 
   content.querySelector("#btn-profile-show-delete").addEventListener("click", () => {
     document.getElementById("profile-delete-zone").style.display = "block";
