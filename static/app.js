@@ -883,6 +883,45 @@ function profileFoldersHtml(links) {
     </div>`).join("");
 }
 
+// Folder links editor - lets staff fix a client's folder path themselves when it moves
+function profileFoldersEditHtml(links) {
+  const row = l => `
+    <div class="toolbar folder-edit-row" data-link-id="${l.id}">
+      <input type="text" class="link-field" data-field="category" value="${esc(l.category || "")}" placeholder="Category (e.g. Income Tax 2026)" style="width:170px;">
+      <input type="text" class="link-field" data-field="link_text" value="${esc(l.link_text || "")}" placeholder="Label" style="width:200px;">
+      <input type="text" class="link-field" data-field="link_target" value="${esc(l.link_target || "")}" placeholder="C:\\Users\\...\\folder path" style="flex:1; min-width:260px;">
+      <button type="button" class="btn secondary btn-link-del" style="color:var(--urgent);">🗑</button>
+    </div>`;
+  return `
+    ${links.map(row).join("") || '<div class="empty">Koi folder link nahi.</div>'}
+    <div class="toolbar" style="margin-top:8px;">
+      <input type="text" id="new-link-category" placeholder="Category (e.g. Income Tax 2026)" style="width:170px;">
+      <input type="text" id="new-link-text" placeholder="Label (optional)" style="width:200px;">
+      <input type="text" id="new-link-target" placeholder="Folder path paste karein" style="flex:1; min-width:260px;">
+      <button type="button" class="btn" id="btn-link-add">+ Folder add karein</button>
+    </div>
+    <div class="small">Tip: Explorer mein folder par Shift + Right-click → "Copy as path", phir yahan paste karein. Har field change hote hi save ho jati hai.</div>`;
+}
+
+function profileNewTaskHtml() {
+  const priorities = ["NORMAL", "URGENT", "URGENT-OVERDUE", "BLOCKED", "LOW"];
+  return `
+    <div class="toolbar">
+      <input type="text" id="new-task-type" placeholder="Task (e.g. Income Tax Return)" style="width:220px;">
+      <input type="text" id="new-task-period" placeholder="Period (e.g. TY2026 / Sep-26)" style="width:170px;">
+      <select id="new-task-priority">${priorities.map(p => `<option>${p}</option>`).join("")}</select>
+      <select id="new-task-owner">${["Umair","Iqbal","Mannan","Maha","Amna","Claude"].map(o => `<option value="${o}">${ownerLabel(o)}</option>`).join("")}</select>
+      <select id="new-task-project"><option>Tax Practice</option><option>QBizTax</option></select>
+      <label class="small">Due: <input type="date" id="new-task-due"></label>
+    </div>
+    <textarea id="new-task-notes" class="followup-msg" placeholder="Notes / next action" style="min-height:40px;"></textarea>
+    <div class="toolbar">
+      <button type="button" class="btn" id="btn-new-task-save">Task save karein</button>
+      <button type="button" class="btn secondary" id="btn-new-task-cancel">Cancel</button>
+      <span class="small" id="new-task-msg"></span>
+    </div>`;
+}
+
 function profileSalesTaxHtml(rows) {
   if (!rows || !rows.length) return "";
   return `<b>Sales Tax Returns</b>
@@ -946,13 +985,17 @@ async function openClientProfile(clientId, returnTab) {
     <div class="profile-stats">${countChips || '<span class="small">Koi task nahi</span>'}</div>
 
     <b>📁 Folders / Directories</b>
-    ${profileFoldersHtml(data.links)}
+    <button type="button" class="btn secondary no-print" id="btn-folders-edit" style="margin-left:8px; font-size:12px; padding:3px 8px;">✏️ Folders edit karein</button>
+    <div id="profile-folders-view">${profileFoldersHtml(data.links)}</div>
+    <div id="profile-folders-edit" class="no-print" style="display:none;">${profileFoldersEditHtml(data.links)}</div>
 
     ${profileSalesTaxHtml(data.sales_tax)}
 
     ${data.drafts && data.drafts.length ? `<b>📝 Drafts</b><ul>${data.drafts.map(d => `<li class="small">${esc(d.draft_type)}: ${esc(d.title || "")} — ${esc(d.status)}</li>`).join("")}</ul>` : ""}
 
     <b>✅ Tasks</b>
+    <button type="button" class="btn secondary no-print" id="btn-new-task" style="margin-left:8px; font-size:12px; padding:3px 8px;">+ Naya Task</button>
+    <div id="profile-new-task" class="no-print" style="display:none; margin:8px 0;">${profileNewTaskHtml()}</div>
     ${openTasks.length ? profileTaskGroupHtml("Open", openTasks) : '<div class="empty">Koi open task nahi</div>'}
     ${closedTasks.length ? profileTaskGroupHtml("Done / Closed", closedTasks) : ""}
 
@@ -995,6 +1038,91 @@ async function openClientProfile(clientId, returnTab) {
 
   content.querySelector("#btn-profile-edit").addEventListener("click", () =>
     openEditClientModal(c, () => openClientProfile(clientId, profileReturnTab)));
+
+  // Folders: toggle edit mode; leaving edit mode reloads the profile so the view shows saved paths
+  const foldersEditBtn = content.querySelector("#btn-folders-edit");
+  foldersEditBtn.addEventListener("click", () => {
+    const editEl = document.getElementById("profile-folders-edit");
+    if (editEl.style.display === "none") {
+      editEl.style.display = "block";
+      document.getElementById("profile-folders-view").style.display = "none";
+      foldersEditBtn.textContent = "✅ Done";
+    } else {
+      openClientProfile(clientId, profileReturnTab);
+    }
+  });
+  content.querySelectorAll(".folder-edit-row").forEach(rowEl => {
+    const linkId = rowEl.dataset.linkId;
+    rowEl.querySelectorAll(".link-field").forEach(field => {
+      field.addEventListener("change", async () => {
+        // "Copy as path" wraps the path in quotes - strip them
+        if (field.dataset.field === "link_target") field.value = field.value.trim().replace(/^"|"$/g, "");
+        await fetch(API + `/api/client-links/${linkId}`, {
+          method: "PUT", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ [field.dataset.field]: field.value }),
+        });
+        toast("Saved");
+      });
+    });
+    const delBtn = rowEl.querySelector(".btn-link-del");
+    delBtn.addEventListener("click", async () => {
+      if (!delBtn.dataset.armed) {
+        delBtn.dataset.armed = "1";
+        delBtn.textContent = "Pakka hatayein?";
+        return;
+      }
+      await fetch(API + `/api/client-links/${linkId}`, { method: "DELETE" });
+      rowEl.remove();
+      toast("Folder link hata diya");
+    });
+  });
+  content.querySelector("#btn-link-add").addEventListener("click", async () => {
+    const target = document.getElementById("new-link-target").value.trim().replace(/^"|"$/g, "");
+    if (!target) { toast("Folder path likhein"); return; }
+    const r = await fetch(API + `/api/clients/${clientId}/links`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        category: document.getElementById("new-link-category").value.trim() || "Other",
+        link_text: document.getElementById("new-link-text").value.trim() || ("Open: " + target.split(/[\\/]/).pop()),
+        link_target: target,
+      }),
+    });
+    if (!r.ok) { toast("Add nahi ho saka"); return; }
+    toast("Folder add ho gaya");
+    await openClientProfile(clientId, profileReturnTab);
+    document.getElementById("btn-folders-edit").click();
+  });
+
+  // New task for this client
+  const newTaskEl = content.querySelector("#profile-new-task");
+  content.querySelector("#btn-new-task").addEventListener("click", () => {
+    newTaskEl.style.display = newTaskEl.style.display === "none" ? "block" : "none";
+    if (newTaskEl.style.display === "block") document.getElementById("new-task-type").focus();
+  });
+  content.querySelector("#btn-new-task-cancel").addEventListener("click", () => { newTaskEl.style.display = "none"; });
+  content.querySelector("#btn-new-task-save").addEventListener("click", async () => {
+    const taskType = document.getElementById("new-task-type").value.trim();
+    const msg = document.getElementById("new-task-msg");
+    if (!taskType) { msg.textContent = "Task likhna zaroori hai."; msg.style.color = "var(--urgent)"; return; }
+    const r = await fetch(API + "/api/tasks", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        client_id: Number(clientId),
+        client_name_raw: c.name,
+        task_type: taskType,
+        period: document.getElementById("new-task-period").value.trim() || null,
+        priority: document.getElementById("new-task-priority").value,
+        owner: document.getElementById("new-task-owner").value,
+        project: document.getElementById("new-task-project").value,
+        due_date: document.getElementById("new-task-due").value || null,
+        notes: document.getElementById("new-task-notes").value.trim() || null,
+        status: "Pending",
+      }),
+    });
+    if (!r.ok) { msg.textContent = "Save nahi ho saka."; msg.style.color = "var(--urgent)"; return; }
+    toast("Task add ho gaya");
+    openClientProfile(clientId, profileReturnTab);
+  });
 
   content.querySelector("#btn-profile-show-delete").addEventListener("click", () => {
     document.getElementById("profile-delete-zone").style.display = "block";

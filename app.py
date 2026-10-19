@@ -302,7 +302,7 @@ def api_client_detail(client_id):
     client = row_as_dict(db.execute("SELECT * FROM clients WHERE id = ?", (client_id,)))
     if not client:
         return jsonify({"error": "not found"}), 404
-    links = rows_as_dicts(db.execute("SELECT category, link_text, link_target FROM client_links WHERE client_id = ?", (client_id,)))
+    links = rows_as_dicts(db.execute("SELECT id, category, link_text, link_target FROM client_links WHERE client_id = ?", (client_id,)))
     tasks = rows_as_dicts(db.execute(
         "SELECT * FROM tasks WHERE client_id = ? ORDER BY CASE status "
         "WHEN 'Pending' THEN 0 WHEN 'In Progress' THEN 1 WHEN 'Blocked' THEN 2 "
@@ -325,6 +325,41 @@ def api_client_detail(client_id):
         "drafts": drafts,
         "sales_tax": sales_tax,
     })
+
+
+@app.route("/api/clients/<int:client_id>/links", methods=["POST"])
+def api_client_links_add(client_id):
+    db = get_db()
+    data = request.json or {}
+    target = (data.get("link_target") or "").strip()
+    if not target:
+        return jsonify({"error": "folder path zaroori hai"}), 400
+    cur = db.execute(
+        "INSERT INTO client_links (client_id, category, link_text, link_target) VALUES (?,?,?,?)",
+        (client_id, (data.get("category") or "Other").strip(), (data.get("link_text") or "").strip() or None, target),
+    )
+    db.commit()
+    return jsonify({"id": cur.lastrowid}), 201
+
+
+@app.route("/api/client-links/<int:link_id>", methods=["PUT", "DELETE"])
+def api_client_link_detail(link_id):
+    db = get_db()
+    if request.method == "DELETE":
+        db.execute("DELETE FROM client_links WHERE id = ?", (link_id,))
+        db.commit()
+        return "", 204
+    data = request.json or {}
+    updates, params = [], []
+    for f in ["category", "link_text", "link_target"]:
+        if f in data:
+            updates.append(f"{f} = ?")
+            params.append((data[f] or "").strip() or None)
+    if updates:
+        params.append(link_id)
+        db.execute(f"UPDATE client_links SET {', '.join(updates)} WHERE id = ?", params)
+        db.commit()
+    return jsonify({"ok": True})
 
 
 @app.route("/api/recurring", methods=["GET", "POST"])
